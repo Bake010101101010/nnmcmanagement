@@ -22,7 +22,7 @@ services:
       JWT_SECRET: dev-jwt-secret
       DATABASE_CLIENT: sqlite
       DATABASE_FILENAME: .tmp/data.db
-      FRONTEND_URL: http://localhost:13004
+      FRONTEND_URL: http://192.168.101.25:13004
     volumes:
       - ./server/.tmp:/app/.tmp
       - ./server/public/uploads:/app/public/uploads
@@ -34,7 +34,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:12004
+        VITE_API_URL: http://192.168.101.25:12004
     container_name: nnmc-frontend-dev
     ports:
       - "13004:13004"

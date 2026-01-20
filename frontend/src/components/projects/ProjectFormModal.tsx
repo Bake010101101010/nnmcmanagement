@@ -56,7 +56,7 @@ export default function ProjectFormModal({
         dueDate: formData.dueDate || undefined,
         priorityLight: formData.priorityLight as 'GREEN' | 'YELLOW' | 'RED',
         status: formData.status as 'ACTIVE' | 'ARCHIVED',
-      } as Partial<Project>;
+      } as unknown as Partial<Project>;
 
       if (project) {
         await projectsApi.update(project.documentId, data);

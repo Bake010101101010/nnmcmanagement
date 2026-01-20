@@ -7,7 +7,6 @@ export default ({ env }) => [
     config: {
       enabled: true,
       headers: '*',
-      credentials: true,
       origin: [
         'http://localhost:13004',
         'http://127.0.0.1:13004',

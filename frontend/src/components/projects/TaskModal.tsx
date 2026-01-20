@@ -58,12 +58,7 @@ export default function TaskModal({ task, isOpen, onClose, onSave }: TaskModalPr
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        <span className="flex items-center gap-2">
-          <ClipboardList className="w-5 h-5 text-primary-500" />
-          {task ? 'Редактировать задачу' : 'Новая задача'}
-        </span>
-      }
+      title={task ? 'Редактировать задачу' : 'Новая задача'}
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

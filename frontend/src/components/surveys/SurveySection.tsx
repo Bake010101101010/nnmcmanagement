@@ -35,7 +35,7 @@ interface Props {
   canEdit: boolean;
 }
 
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'http://192.168.101.25:13004';
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'http://localhost:13004';
 
 export default function SurveySection({
   projectDocumentId,

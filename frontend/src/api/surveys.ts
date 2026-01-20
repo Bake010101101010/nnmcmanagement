@@ -1,7 +1,7 @@
 import client from './client';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:12004';
+const API_URL = import.meta.env.VITE_API_URL || 'http://192.168.101.25:12004';
 
 export interface SurveyQuestion {
   id?: number;

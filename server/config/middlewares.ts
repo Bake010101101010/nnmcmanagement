@@ -12,7 +12,7 @@ export default ({ env }) => [
         'http://localhost:13004',
         'http://127.0.0.1:13004',
         'http://192.168.101.25:13004',
-        env('FRONTEND_URL', 'http://localhost:13004'),
+        env('FRONTEND_URL', 'http://192.168.101.25:13004'),
       ],
     },
   },

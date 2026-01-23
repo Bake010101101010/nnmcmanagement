@@ -68,7 +68,8 @@ export default function BoardPage() {
     fetchDepartments();
   }, [fetchStages, fetchDepartments]);
 
-  useEffect(() => {
+  // Функция для формирования фильтров
+  const getFilters = (): Record<string, string | undefined> => {
     const filters: Record<string, string | undefined> = {};
     
     // Admin (SuperAdmin) может видеть все отделы и фильтровать
@@ -87,7 +88,11 @@ export default function BoardPage() {
       filters.status = 'ACTIVE';
     }
     
-    fetchProjects(filters);
+    return filters;
+  };
+
+  useEffect(() => {
+    fetchProjects(getFilters());
   }, [departmentKey, deptFilter, showArchived, isAdmin, fetchProjects]);
 
   // Фильтрация по приоритету на клиенте
@@ -321,7 +326,7 @@ export default function BoardPage() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
-            fetchProjects();
+            fetchProjects(getFilters());
           }}
         />
       )}

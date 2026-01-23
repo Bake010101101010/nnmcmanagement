@@ -70,6 +70,7 @@ export default function ProjectDetailPage() {
   const [isAddingMeeting, setIsAddingMeeting] = useState(false);
   const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
   const [editingMeetingText, setEditingMeetingText] = useState('');
+  const [meetingError, setMeetingError] = useState<string | null>(null);
   
   // Description editing
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -171,16 +172,21 @@ export default function ProjectDetailPage() {
   const handleAddMeeting = async () => {
     if (!newMeetingText.trim() || !project || !canAddMeetingNotes) return;
     setIsAddingMeeting(true);
+    setMeetingError(null);
     try {
       await meetingsApi.create({
         text: newMeetingText,
         project: project.documentId,
-        author: user?.id,
+        // author will be set automatically by server
       });
       setNewMeetingText('');
       fetchProject(id!);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add meeting:', error);
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          'Не удалось добавить запись. Проверьте права доступа.';
+      setMeetingError(errorMessage);
     } finally {
       setIsAddingMeeting(false);
     }
@@ -223,6 +229,16 @@ export default function ProjectDetailPage() {
   // Проверка: может ли пользователь редактировать/удалять конкретную запись
   const canEditMeeting = (meeting: MeetingNote) => {
     return canManageMeetingNotes || meeting.author?.id === user?.id;
+  };
+
+  // Функция для форматирования имени пользователя
+  const getUserDisplayName = (user?: { firstName?: string; lastName?: string; username?: string; email?: string }) => {
+    if (!user) return '';
+    if (user.firstName || user.lastName) {
+      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+      if (fullName) return fullName;
+    }
+    return user.username || user.email || 'Пользователь';
   };
 
   // === HELPERS ===
@@ -479,6 +495,11 @@ export default function ProjectDetailPage() {
                       {task.description && (
                         <p className="text-sm text-slate-500 mt-1 line-clamp-2">{task.description}</p>
                       )}
+                      {task.assignee && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          {t('task.assignee')}: {getUserDisplayName(task.assignee)}
+                        </p>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -550,10 +571,19 @@ export default function ProjectDetailPage() {
                 <textarea
                   placeholder={t('meeting.addNote')}
                   value={newMeetingText}
-                  onChange={(e) => setNewMeetingText(e.target.value)}
+                  onChange={(e) => {
+                    setNewMeetingText(e.target.value);
+                    setMeetingError(null);
+                  }}
                   rows={3}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-500 mb-2"
                 />
+                {meetingError && (
+                  <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{meetingError}</span>
+                  </div>
+                )}
                 <Button onClick={handleAddMeeting} loading={isAddingMeeting} size="sm">
                   {t('meeting.addNote')}
                 </Button>
@@ -565,15 +595,30 @@ export default function ProjectDetailPage() {
               {!project.meetings || project.meetings.length === 0 ? (
                 <p className="text-slate-400 text-center py-4">{t('meeting.noNotes')}</p>
               ) : (
-                project.meetings.map((meeting) => (
+                project.meetings.map((meeting) => {
+                  // Debug: log meeting data to see what we're getting
+                  console.log('Meeting data:', meeting);
+                  console.log('Meeting author:', meeting.author);
+                  
+                  return (
                   <div key={meeting.id} className="p-3 rounded-lg bg-slate-50 border border-slate-100">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="text-xs text-slate-500">
-                        <span className="font-medium">
-                          {meeting.author?.firstName || meeting.author?.username || 'Аноним'}
-                        </span>
-                        {' • '}
-                        {formatDateTime(meeting.createdAt)}
+                        {meeting.author ? (
+                          <>
+                            <span className="font-medium text-slate-700">
+                              {getUserDisplayName(meeting.author)}
+                            </span>
+                            {' • '}
+                            <span>{formatDateTime(meeting.createdAt)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-slate-400 italic">Автор не указан</span>
+                            {' • '}
+                            <span>{formatDateTime(meeting.createdAt)}</span>
+                          </>
+                        )}
                       </div>
                       {editingMeetingId !== meeting.documentId && (
                         <div className="flex gap-1">
@@ -624,7 +669,8 @@ export default function ProjectDetailPage() {
                       </div>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

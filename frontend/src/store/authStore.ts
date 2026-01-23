@@ -153,6 +153,7 @@ export const useUserRole = () => {
   let role: 'admin' | 'lead' | 'member' = 'member';
   if (isAdmin) role = 'admin';
   else if (isLead) role = 'lead';
+  else if (isMember) role = 'member';
   
   // Отдел пользователя
   const userDepartment = user?.department as Department | undefined;
@@ -161,16 +162,16 @@ export const useUserRole = () => {
   // === ПРАВА ДОСТУПА ===
   
   // Может редактировать проект (описание, даты, приоритет, статус)
-  const canEditProject = isAdmin || isLead;
+  const canEditProject = isAdmin || isLead || isMember;
   
   // Может назначать ответственных пользователей
-  const canAssignResponsible = isAdmin || isLead;
+  const canAssignResponsible = isAdmin || isLead || isMember;
   
   // Может создавать и редактировать задачи
-  const canManageTasks = isAdmin || isLead;
+  const canManageTasks = isAdmin || isLead || isMember;
   
   // Может удалять задачи
-  const canDeleteTasks = isAdmin || isLead;
+  const canDeleteTasks = isAdmin || isLead || isMember;
   
   // Может менять статус задач (выполнено/не выполнено) - все пользователи как исполнители
   const canChangeTaskStatus = true;
@@ -179,19 +180,19 @@ export const useUserRole = () => {
   const canAddMeetingNotes = true;
   
   // Может редактировать/удалять записи совещаний (свои или все для руководителей)
-  const canManageMeetingNotes = isAdmin || isLead;
+  const canManageMeetingNotes = isAdmin || isLead || isMember;
   
   // Может перетаскивать проекты на канбане
   const canDragProjects = isAdmin || isLead;
   
   // Может работать с документами
-  const canManageDocuments = isAdmin || isLead;
+  const canManageDocuments = isAdmin || isLead || isMember;
   
   // Может создавать анкеты
-  const canManageSurveys = isAdmin || isLead;
+  const canManageSurveys = isAdmin || isLead || isMember;
   
   // Обратная совместимость - общий canEdit (для Lead и Admin)
-  const canEdit = isAdmin || isLead;
+  const canEdit = isAdmin || isLead ;
   
   return {
     isAdmin,

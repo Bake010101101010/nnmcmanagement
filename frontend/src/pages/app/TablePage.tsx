@@ -62,32 +62,37 @@ export default function TablePage() {
     fetchDepartments();
   }, [fetchStages, fetchDepartments]);
 
+  // Функция для формирования фильтров
+  const getFilters = (): Record<string, string | undefined> => {
+    const filters: Record<string, string | undefined> = {};
+    
+    // Admin (SuperAdmin) может видеть все отделы и фильтровать
+    // Lead и Member видят только свой отдел
+    if (isAdmin) {
+      // Admin может фильтровать по любому отделу
+      if (deptFilter) {
+        filters.department = deptFilter;
+      }
+    } else if (departmentKey) {
+      // Lead и Member видят только свой отдел
+      filters.department = departmentKey;
+    }
+    
+    if (statusFilter) {
+      filters.status = statusFilter;
+    }
+    
+    if (searchTerm) {
+      filters.search = searchTerm;
+    }
+    
+    return filters;
+  };
+
   // Загрузка проектов с фильтрами
   useEffect(() => {
     const loadProjects = async () => {
-      const filters: Record<string, string | undefined> = {};
-      
-      // Admin (SuperAdmin) может видеть все отделы и фильтровать
-      // Lead и Member видят только свой отдел
-      if (isAdmin) {
-        // Admin может фильтровать по любому отделу
-        if (deptFilter) {
-          filters.department = deptFilter;
-        }
-      } else if (departmentKey) {
-        // Lead и Member видят только свой отдел
-        filters.department = departmentKey;
-      }
-      
-      if (statusFilter) {
-        filters.status = statusFilter;
-      }
-      
-      if (searchTerm) {
-        filters.search = searchTerm;
-      }
-      
-      await fetchProjects(filters);
+      await fetchProjects(getFilters());
     };
     
     const timer = setTimeout(loadProjects, 300);
@@ -401,7 +406,7 @@ export default function TablePage() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
-            fetchProjects();
+            fetchProjects(getFilters());
           }}
         />
       )}

@@ -16,7 +16,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set build-time environment variables
-ARG VITE_API_URL=http://192.168.101.25:12004
+ARG VITE_API_URL=http://localhost:12004
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

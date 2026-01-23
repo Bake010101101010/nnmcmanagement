@@ -5,7 +5,7 @@ export const meetingsApi = {
   create: async (data: {
     text: string;
     project: number | string;
-    author?: number;
+    // author is set automatically by server
   }): Promise<MeetingNote> => {
     const response = await client.post('/meeting-notes', { data });
     return response.data.data;

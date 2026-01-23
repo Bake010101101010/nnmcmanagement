@@ -9,7 +9,7 @@ interface Props {
   canEdit: boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://192.168.101.25:12004';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:12004';
 
 export default function DocumentsSection({ projectDocumentId, canEdit }: Props) {
   const { t } = useTranslation();

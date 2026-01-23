@@ -21,8 +21,13 @@ export const projectsApi = {
 
     const response = await client.get('/projects', {
       params: {
-        populate: ['department', 'tasks', 'responsibleUsers', 'manualStageOverride', 'meetings', 'meetings.author'],
-        filters,
+        'populate[0]': 'department',
+        'populate[1]': 'tasks',
+        'populate[2]': 'responsibleUsers',
+        'populate[3]': 'manualStageOverride',
+        'populate[4]': 'meetings',
+        'populate[5]': 'meetings.author',
+        ...filters,
         sort: ['createdAt:desc'],
         pagination: { pageSize: 100 },
       },
@@ -39,9 +44,16 @@ export const projectsApi = {
 
   getOne: async (id: number | string): Promise<Project> => {
     // In Strapi v5, we need to use documentId for single item access
+    // Use string format for nested populate (like in surveys.ts)
     const response = await client.get(`/projects/${id}`, {
       params: {
-        populate: ['department', 'tasks', 'tasks.assignee', 'responsibleUsers', 'manualStageOverride', 'meetings', 'meetings.author'],
+        'populate[0]': 'department',
+        'populate[1]': 'tasks',
+        'populate[2]': 'tasks.assignee',
+        'populate[3]': 'responsibleUsers',
+        'populate[4]': 'manualStageOverride',
+        'populate[5]': 'meetings',
+        'populate[6]': 'meetings.author',
       },
     });
     return response.data.data;

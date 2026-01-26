@@ -3,34 +3,35 @@ import type { Project } from '../types';
 
 export const projectsApi = {
   getAll: async (params?: {
-    status?: string;
+    status?: Project['status'];
     department?: string;
     search?: string;
   }): Promise<Project[]> => {
-    const filters: Record<string, unknown> = {};
-    
+    const query: Record<string, string | number | boolean | undefined> = {
+      'populate[0]': 'department',
+      'populate[1]': 'tasks',
+      'populate[2]': 'responsibleUsers',
+      'populate[3]': 'manualStageOverride',
+      'populate[4]': 'meetings',
+      'populate[5]': 'meetings.author',
+      'sort[0]': 'createdAt:desc',
+      'pagination[pageSize]': 100,
+    };
+
     if (params?.status) {
-      filters.status = { $eq: params.status };
+      query['filters[status][$eq]'] = params.status;
+    } else {
+      query['filters[status][$ne]'] = 'DELETED';
     }
     if (params?.department) {
-      filters.department = { key: { $eq: params.department } };
+      query['filters[department][key][$eq]'] = params.department;
     }
     if (params?.search) {
-      filters.title = { $containsi: params.search };
+      query['filters[title][$containsi]'] = params.search;
     }
 
     const response = await client.get('/projects', {
-      params: {
-        'populate[0]': 'department',
-        'populate[1]': 'tasks',
-        'populate[2]': 'responsibleUsers',
-        'populate[3]': 'manualStageOverride',
-        'populate[4]': 'meetings',
-        'populate[5]': 'meetings.author',
-        ...filters,
-        sort: ['createdAt:desc'],
-        pagination: { pageSize: 100 },
-      },
+      params: query,
     });
     
     // Map Strapi v5 response to include documentId as id for routing
@@ -71,6 +72,13 @@ export const projectsApi = {
 
   delete: async (id: number | string): Promise<void> => {
     await client.delete(`/projects/${id}`);
+  },
+
+  softDelete: async (id: number | string): Promise<Project> => {
+    const response = await client.put(`/projects/${id}`, {
+      data: { status: 'DELETED' },
+    });
+    return response.data.data;
   },
 
   archive: async (id: number | string): Promise<Project> => {

@@ -65,6 +65,8 @@ export interface Task {
   description?: string;
   status: 'TODO' | 'IN_PROGRESS' | 'DONE';
   dueDate?: string;
+  startDate?: string;
+  endDate?: string;
   order: number;
   assignee?: User;
   project?: Project;
@@ -89,7 +91,7 @@ export interface Project {
   department?: Department;
   startDate?: string;
   dueDate?: string;
-  status: 'ACTIVE' | 'ARCHIVED';
+  status: 'ACTIVE' | 'ARCHIVED' | 'DELETED';
   priorityLight: 'GREEN' | 'YELLOW' | 'RED';
   responsibleUsers?: User[];
   manualStageOverride?: BoardStage;

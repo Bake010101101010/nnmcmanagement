@@ -39,6 +39,12 @@
     "dueDate": {
       "type": "date"
     },
+    "startDate": {
+      "type": "date"
+    },
+    "endDate": {
+      "type": "date"
+    },
     "order": {
       "type": "integer",
       "default": 0

@@ -8,6 +8,8 @@ export const tasksApi = {
     project: string; // documentId
     status?: 'TODO' | 'IN_PROGRESS' | 'DONE';
     order?: number;
+    startDate?: string;
+    endDate?: string;
   }): Promise<Task> => {
     const response = await client.post('/tasks', { data });
     return response.data.data;

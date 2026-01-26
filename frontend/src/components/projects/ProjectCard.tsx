@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Calendar, Users, AlertTriangle, Clock } from 'lucide-react';
+import { Calendar, Users, AlertTriangle, Clock, Trash2 } from 'lucide-react';
 import type { Project } from '../../types';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
@@ -10,9 +10,17 @@ interface ProjectCardProps {
   project: Project;
   onClick: () => void;
   isDragging?: boolean;
+  canDelete?: boolean;
+  onDelete?: () => void;
 }
 
-export default function ProjectCard({ project, onClick, isDragging }: ProjectCardProps) {
+export default function ProjectCard({
+  project,
+  onClick,
+  isDragging,
+  canDelete,
+  onDelete,
+}: ProjectCardProps) {
   const { t, i18n } = useTranslation();
 
   const getDepartmentName = () => {
@@ -37,6 +45,11 @@ export default function ProjectCard({ project, onClick, isDragging }: ProjectCar
     onClick();
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.();
+  };
+
   return (
     <Card
       className={`transition-all ${isDragging ? 'opacity-50 shadow-xl' : ''} ${
@@ -52,7 +65,19 @@ export default function ProjectCard({ project, onClick, isDragging }: ProjectCar
         >
           {project.title}
         </button>
-        <PriorityLight priority={project.priorityLight} />
+        <div className="flex items-center gap-2">
+          {canDelete && onDelete && (
+            <button
+              onClick={handleDeleteClick}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title={t('project.deleteProject')}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          <PriorityLight priority={project.priorityLight} />
+        </div>
       </div>
 
       {/* Badges */}
@@ -81,7 +106,12 @@ export default function ProjectCard({ project, onClick, isDragging }: ProjectCar
         )}
         {project.status === 'ARCHIVED' && (
           <Badge variant="default" size="sm">
-            В архиве
+            {t('status.ARCHIVED')}
+          </Badge>
+        )}
+        {project.status === 'DELETED' && (
+          <Badge variant="danger" size="sm">
+            {t('status.DELETED')}
           </Badge>
         )}
       </div>

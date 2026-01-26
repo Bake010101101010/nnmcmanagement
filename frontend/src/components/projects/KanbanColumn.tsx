@@ -10,6 +10,8 @@ interface KanbanColumnProps {
   projects: Project[];
   onProjectClick: (documentId: string) => void;
   canDrag: boolean;
+  canDeleteProject?: boolean;
+  onDeleteProject?: (project: Project) => void;
 }
 
 export default function KanbanColumn({
@@ -18,6 +20,8 @@ export default function KanbanColumn({
   projects,
   onProjectClick,
   canDrag,
+  canDeleteProject,
+  onDeleteProject,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
@@ -60,6 +64,8 @@ export default function KanbanColumn({
               project={project}
               onProjectClick={onProjectClick}
               canDrag={canDrag}
+              canDeleteProject={canDeleteProject}
+              onDeleteProject={onDeleteProject}
             />
           ))
         )}
@@ -72,9 +78,17 @@ interface DraggableProjectCardProps {
   project: Project;
   onProjectClick: (documentId: string) => void;
   canDrag: boolean;
+  canDeleteProject?: boolean;
+  onDeleteProject?: (project: Project) => void;
 }
 
-function DraggableProjectCard({ project, onProjectClick, canDrag }: DraggableProjectCardProps) {
+function DraggableProjectCard({
+  project,
+  onProjectClick,
+  canDrag,
+  canDeleteProject,
+  onDeleteProject,
+}: DraggableProjectCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: project.documentId,
     disabled: !canDrag,
@@ -98,6 +112,8 @@ function DraggableProjectCard({ project, onProjectClick, canDrag }: DraggablePro
         project={project}
         onClick={() => onProjectClick(project.documentId)}
         isDragging={isDragging}
+        canDelete={canDeleteProject}
+        onDelete={onDeleteProject ? () => onDeleteProject(project) : undefined}
       />
     </div>
   );

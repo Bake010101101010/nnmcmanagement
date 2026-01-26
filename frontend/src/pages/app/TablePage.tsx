@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, Filter, Plus, ExternalLink, Archive, RotateCcw, Building2 } from 'lucide-react';
+import { Search, Filter, Plus, ExternalLink, Archive, RotateCcw, Building2, Trash2 } from 'lucide-react';
 import { useProjectStore, getProjectStage } from '../../store/projectStore';
 import { useUserRole } from '../../store/authStore';
 import { projectsApi } from '../../api/projects';
+import type { Project } from '../../types';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -13,13 +14,14 @@ import Input from '../../components/ui/Input';
 import ProgressBar from '../../components/ui/ProgressBar';
 import PriorityLight from '../../components/ui/PriorityLight';
 import Loader from '../../components/ui/Loader';
+import Modal from '../../components/ui/Modal';
 import ProjectFormModal from '../../components/projects/ProjectFormModal';
 
 export default function TablePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { departmentKey, userDepartment, isAdmin, canEditProject, canEdit } = useUserRole();
+  const { departmentKey, userDepartment, isAdmin, canEditProject, canEdit, canDeleteProject } = useUserRole();
   const {
     projects,
     stages,
@@ -36,6 +38,10 @@ export default function TablePage() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [specialFilter, setSpecialFilter] = useState(''); // overdue, dueSoon
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteProject, setDeleteProject] = useState<Project | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [purgeProject, setPurgeProject] = useState<Project | null>(null);
+  const [isPurgingProject, setIsPurgingProject] = useState(false);
 
   // Читаем фильтры из URL при загрузке
   useEffect(() => {
@@ -46,6 +52,13 @@ export default function TablePage() {
       setStatusFilter('ACTIVE');
     } else if (filter === 'archived') {
       setStatusFilter('ARCHIVED');
+    } else if (filter === 'deleted') {
+      if (isAdmin) {
+        setStatusFilter('DELETED');
+        setSpecialFilter('');
+      } else {
+        setStatusFilter('');
+      }
     } else if (filter === 'overdue') {
       setSpecialFilter('overdue');
     } else if (filter === 'dueSoon') {
@@ -55,7 +68,7 @@ export default function TablePage() {
     if (dept) {
       setDeptFilter(dept);
     }
-  }, [searchParams]);
+  }, [searchParams, isAdmin]);
 
   useEffect(() => {
     fetchStages();
@@ -101,6 +114,7 @@ export default function TablePage() {
 
   // Фильтрация на клиенте для overdue/dueSoon/priority
   const filteredProjects = projects.filter((project) => {
+    if (project.status === 'DELETED' && statusFilter !== 'DELETED') return false;
     if (specialFilter === 'overdue' && !project.overdue) return false;
     if (specialFilter === 'dueSoon' && !project.dueSoon) return false;
     if (priorityFilter && project.priorityLight !== priorityFilter) return false;
@@ -119,7 +133,7 @@ export default function TablePage() {
   const handleArchive = async (documentId: string) => {
     try {
       await projectsApi.archive(documentId);
-      fetchProjects();
+      fetchProjects(getFilters());
     } catch (error) {
       console.error('Failed to archive:', error);
     }
@@ -128,9 +142,37 @@ export default function TablePage() {
   const handleRestore = async (documentId: string) => {
     try {
       await projectsApi.restore(documentId);
-      fetchProjects();
+      fetchProjects(getFilters());
     } catch (error) {
       console.error('Failed to restore:', error);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!deleteProject) return;
+    setIsDeletingProject(true);
+    try {
+      await projectsApi.softDelete(deleteProject.documentId);
+      setDeleteProject(null);
+      fetchProjects(getFilters());
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
+  const handlePurgeProject = async () => {
+    if (!purgeProject) return;
+    setIsPurgingProject(true);
+    try {
+      await projectsApi.delete(purgeProject.documentId);
+      setPurgeProject(null);
+      fetchProjects(getFilters());
+    } catch (error) {
+      console.error('Failed to delete project permanently:', error);
+    } finally {
+      setIsPurgingProject(false);
     }
   };
 
@@ -160,6 +202,7 @@ export default function TablePage() {
     { value: '', label: t('common.all') },
     { value: 'ACTIVE', label: t('status.ACTIVE') },
     { value: 'ARCHIVED', label: t('status.ARCHIVED') },
+    ...(isAdmin ? [{ value: 'DELETED', label: t('status.DELETED') }] : []),
   ];
 
   const departmentOptions = [
@@ -210,11 +253,25 @@ export default function TablePage() {
             <span className="text-slate-500">• {filteredProjects.length} проект(ов)</span>
           </div>
         </div>
-        {canEditProject && (
-          <Button onClick={() => setShowCreateModal(true)} icon={<Plus className="w-4 h-4" />}>
-            {t('project.createProject')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setStatusFilter('DELETED');
+                setSpecialFilter('');
+              }}
+              icon={<Trash2 className="w-4 h-4" />}
+            >
+              {t('project.deletedProjects')}
+            </Button>
+          )}
+          {canEditProject && (
+            <Button onClick={() => setShowCreateModal(true)} icon={<Plus className="w-4 h-4" />}>
+              {t('project.createProject')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -247,7 +304,13 @@ export default function TablePage() {
             <Select
               options={statusOptions}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setStatusFilter(value);
+                if (value === 'DELETED') {
+                  setSpecialFilter('');
+                }
+              }}
             />
           </div>
           
@@ -354,7 +417,13 @@ export default function TablePage() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge
-                        variant={project.status === 'ACTIVE' ? 'success' : 'default'}
+                        variant={
+                          project.status === 'ACTIVE'
+                            ? 'success'
+                            : project.status === 'DELETED'
+                            ? 'danger'
+                            : 'default'
+                        }
                         size="sm"
                       >
                         {t(`status.${project.status}`)}
@@ -369,8 +438,26 @@ export default function TablePage() {
                         >
                           <ExternalLink className="w-4 h-4" />
                         </button>
+                        {project.status === 'DELETED' && isAdmin && (
+                          <>
+                            <button
+                              onClick={() => handleRestore(project.documentId)}
+                              className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title={t('project.restoreProject')}
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setPurgeProject(project)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title={t('project.deleteProjectPermanently')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                         {/* Архивирование/восстановление - только для Lead/Admin */}
-                        {canEdit && (
+                        {canEdit && project.status !== 'DELETED' && (
                           project.status === 'ACTIVE' ? (
                             <button
                               onClick={() => handleArchive(project.documentId)}
@@ -388,6 +475,15 @@ export default function TablePage() {
                               <RotateCcw className="w-4 h-4" />
                             </button>
                           )
+                        )}
+                        {canDeleteProject && project.status !== 'DELETED' && (
+                          <button
+                            onClick={() => setDeleteProject(project)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title={t('project.deleteProject')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -410,6 +506,45 @@ export default function TablePage() {
           }}
         />
       )}
+
+      {/* Delete Project Modal */}
+      <Modal
+        isOpen={Boolean(deleteProject)}
+        onClose={() => setDeleteProject(null)}
+        title={t('project.deleteProject')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">{t('project.deleteProjectConfirm')}</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDeleteProject(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handleDeleteProject} loading={isDeletingProject}>
+              {t('common.delete')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(purgeProject)}
+        onClose={() => setPurgeProject(null)}
+        title={t('project.deleteProjectPermanently')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">{t('project.deleteProjectPermanentlyConfirm')}</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setPurgeProject(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handlePurgeProject} loading={isPurgingProject}>
+              {t('project.deleteProjectPermanently')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

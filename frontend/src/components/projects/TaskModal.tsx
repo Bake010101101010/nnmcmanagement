@@ -11,35 +11,66 @@ interface TaskModalProps {
   task?: Task;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { title: string; description: string; status: Task['status'] }) => Promise<void>;
+  onSave: (data: {
+    title: string;
+    description: string;
+    status: Task['status'];
+    startDate?: string;
+    endDate?: string;
+  }) => Promise<void>;
+  projectDueDate?: string;
 }
 
-export default function TaskModal({ task, isOpen, onClose, onSave }: TaskModalProps) {
+export default function TaskModal({ task, isOpen, onClose, onSave, projectDueDate }: TaskModalProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Task['status']>('TODO');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  const projectDeadline = projectDueDate ? projectDueDate.split('T')[0] : undefined;
 
   useEffect(() => {
     if (task) {
       setTitle(task.title);
       setDescription(task.description || '');
       setStatus(task.status);
+      setStartDate(task.startDate || '');
+      setEndDate(task.endDate || '');
     } else {
       setTitle('');
       setDescription('');
       setStatus('TODO');
+      setStartDate('');
+      setEndDate('');
     }
+    setDateError(null);
   }, [task, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    if (projectDeadline) {
+      if ((startDate && startDate > projectDeadline) || (endDate && endDate > projectDeadline)) {
+        setDateError('Task dates cannot exceed project deadline.');
+        return;
+      }
+    }
+
+    setDateError(null);
     setIsLoading(true);
     try {
-      await onSave({ title: title.trim(), description: description.trim(), status });
+      await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        status,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
       onClose();
     } catch (error) {
       console.error('Failed to save task:', error);
@@ -92,7 +123,33 @@ export default function TaskModal({ task, isOpen, onClose, onSave }: TaskModalPr
           />
         )}
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            type="date"
+            label="Дата начала"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              if (dateError) setDateError(null);
+            }}
+            max={projectDeadline}
+          />
+          <Input
+            type="date"
+            label="Дата завершения"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              if (dateError) setDateError(null);
+            }}
+            max={projectDeadline}
+          />
+          </div>
+          {dateError && (
+            <p className="text-sm text-red-600">{dateError}</p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Отмена
           </Button>

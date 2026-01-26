@@ -163,6 +163,7 @@ export const useUserRole = () => {
   
   // Может редактировать проект (описание, даты, приоритет, статус)
   const canEditProject = isAdmin || isLead || isMember;
+  const canDeleteProject = isAdmin || isLead;
   
   // Может назначать ответственных пользователей
   const canAssignResponsible = isAdmin || isLead || isMember;
@@ -203,6 +204,7 @@ export const useUserRole = () => {
     departmentKey,
     // Детальные права
     canEditProject,
+    canDeleteProject,
     canAssignResponsible,
     canManageTasks,
     canDeleteTasks,

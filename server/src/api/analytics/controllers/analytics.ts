@@ -9,7 +9,9 @@ export default {
       const departmentFilter = ctx.query.department as string | undefined;
       
       // Строим фильтр
-      const filters: any = {};
+      const filters: any = {
+        status: { $ne: 'DELETED' },
+      };
       if (departmentFilter) {
         filters.department = { key: departmentFilter };
       }
@@ -53,6 +55,9 @@ export default {
       }
 
       for (const project of projects) {
+        if (project.status === 'DELETED') {
+          continue;
+        }
         total++;
 
         const tasks = project.tasks || [];

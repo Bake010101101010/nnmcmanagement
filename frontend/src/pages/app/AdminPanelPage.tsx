@@ -16,8 +16,11 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  RotateCcw,
 } from 'lucide-react';
 import { adminUsersApi, AdminUser, Role } from '../../api/adminUsers';
+import { projectsApi } from '../../api/projects';
+import type { Project } from '../../types';
 import { useProjectStore } from '../../store/projectStore';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -34,6 +37,10 @@ export default function AdminPanelPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletedProjects, setDeletedProjects] = useState<Project[]>([]);
+  const [isDeletedProjectsLoading, setIsDeletedProjectsLoading] = useState(false);
+  const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false);
+  const [selectedDeletedProject, setSelectedDeletedProject] = useState<Project | null>(null);
   
   // Фильтры
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,6 +75,7 @@ export default function AdminPanelPage() {
     fetchDepartments();
     loadRoles();
     loadUsers();
+    loadDeletedProjects();
   }, []);
 
   useEffect(() => {
@@ -92,6 +100,18 @@ export default function AdminPanelPage() {
       console.error('Failed to load users:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadDeletedProjects = async () => {
+    setIsDeletedProjectsLoading(true);
+    try {
+      const data = await projectsApi.getAll({ status: 'DELETED' });
+      setDeletedProjects(data);
+    } catch (error) {
+      console.error('Failed to load deleted projects:', error);
+    } finally {
+      setIsDeletedProjectsLoading(false);
     }
   };
 
@@ -179,6 +199,33 @@ export default function AdminPanelPage() {
       loadUsers();
     } catch (error: any) {
       alert(error.response?.data?.error?.message || 'Ошибка удаления');
+    }
+  };
+
+  const openDeleteProjectConfirm = (project: Project) => {
+    setSelectedDeletedProject(project);
+    setShowDeleteProjectConfirm(true);
+  };
+
+  const handleRestoreDeletedProject = async (project: Project) => {
+    try {
+      await projectsApi.restore(project.documentId);
+      loadDeletedProjects();
+    } catch (error: any) {
+      alert(error.response?.data?.error?.message || 'Ошибка восстановления проекта');
+    }
+  };
+
+  const handleDeleteProjectPermanently = async () => {
+    if (!selectedDeletedProject) return;
+    
+    try {
+      await projectsApi.delete(selectedDeletedProject.documentId);
+      setShowDeleteProjectConfirm(false);
+      setSelectedDeletedProject(null);
+      loadDeletedProjects();
+    } catch (error: any) {
+      alert(error.response?.data?.error?.message || 'Ошибка удаления проекта');
     }
   };
 
@@ -497,6 +544,79 @@ export default function AdminPanelPage() {
         </div>
       </Card>
 
+      {/* Deleted Projects */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800">{t('project.deletedProjects')}</h3>
+          <Button variant="ghost" onClick={loadDeletedProjects} icon={<RefreshCw className="w-4 h-4" />}>
+            Обновить
+          </Button>
+        </div>
+        {isDeletedProjectsLoading && deletedProjects.length === 0 ? (
+          <Loader text="Загрузка удаленных проектов..." />
+        ) : deletedProjects.length === 0 ? (
+          <div className="text-center py-10 text-slate-500">
+            Удаленных проектов нет
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-slate-500 border-b border-slate-200">
+                  <th className="px-4 py-3 font-medium">Проект</th>
+                  <th className="px-4 py-3 font-medium">Отдел</th>
+                  <th className="px-4 py-3 font-medium">Статус</th>
+                  <th className="px-4 py-3 font-medium">Удален</th>
+                  <th className="px-4 py-3 font-medium text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedProjects.map((project) => (
+                  <tr key={project.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      {project.title}
+                    </td>
+                    <td className="px-4 py-3">
+                      {project.department ? (
+                        <Badge variant={project.department.key === 'IT' ? 'it' : 'digital'}>
+                          {getDepartmentName(project.department)}
+                        </Badge>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="danger">{t('status.DELETED')}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500">
+                      {project.updatedAt ? formatDate(project.updatedAt) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleRestoreDeletedProject(project)}
+                          className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title={t('project.restoreProject')}
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openDeleteProjectConfirm(project)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title={t('project.deleteProjectPermanently')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       {/* Create User Modal */}
       <Modal
         isOpen={showCreateModal}
@@ -707,6 +827,28 @@ export default function AdminPanelPage() {
             </Button>
             <Button variant="primary" className="!bg-red-600 hover:!bg-red-700" onClick={handleDeleteUser}>
               Удалить
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Project Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteProjectConfirm}
+        onClose={() => { setShowDeleteProjectConfirm(false); setSelectedDeletedProject(null); }}
+        title={t('project.deleteProjectPermanently')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-slate-600">
+            {t('project.deleteProjectPermanentlyConfirm')}
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => { setShowDeleteProjectConfirm(false); setSelectedDeletedProject(null); }}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handleDeleteProjectPermanently}>
+              {t('project.deleteProjectPermanently')}
             </Button>
           </div>
         </div>

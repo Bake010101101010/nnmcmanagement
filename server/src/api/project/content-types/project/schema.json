@@ -33,7 +33,7 @@
     },
     "status": {
       "type": "enumeration",
-      "enum": ["ACTIVE", "ARCHIVED"],
+      "enum": ["ACTIVE", "ARCHIVED", "DELETED"],
       "default": "ACTIVE",
       "required": true
     },

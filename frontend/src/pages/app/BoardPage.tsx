@@ -11,7 +11,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Plus, AlertCircle, Building2, AlertTriangle } from 'lucide-react';
+import { Plus, AlertCircle, Building2, AlertTriangle, Trash2 } from 'lucide-react';
 import { useProjectStore, getProjectStage } from '../../store/projectStore';
 import { useUserRole } from '../../store/authStore';
 import { projectsApi } from '../../api/projects';
@@ -29,7 +29,7 @@ import ProjectFormModal from '../../components/projects/ProjectFormModal';
 export default function BoardPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { departmentKey, userDepartment, isAdmin, canDragProjects, canEditProject } = useUserRole();
+  const { departmentKey, userDepartment, isAdmin, canDragProjects, canEditProject, canDeleteProject } = useUserRole();
   const {
     projects,
     stages,
@@ -46,6 +46,8 @@ export default function BoardPage() {
   const [deptFilter, setDeptFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [deleteProject, setDeleteProject] = useState<Project | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
   
   // Модальное окно предупреждения
   const [warningModal, setWarningModal] = useState<{
@@ -97,6 +99,7 @@ export default function BoardPage() {
 
   // Фильтрация по приоритету на клиенте
   const filteredProjects = projects.filter((project) => {
+    if (project.status === 'DELETED') return false;
     if (priorityFilter && project.priorityLight !== priorityFilter) return false;
     return true;
   });
@@ -151,6 +154,24 @@ export default function BoardPage() {
       });
     } catch (error) {
       console.error('Failed to update stage:', error);
+    }
+  };
+
+  const handleDeleteProject = (project: Project) => {
+    setDeleteProject(project);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteProject) return;
+    setIsDeletingProject(true);
+    try {
+      await projectsApi.softDelete(deleteProject.documentId);
+      setDeleteProject(null);
+      fetchProjects(getFilters());
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    } finally {
+      setIsDeletingProject(false);
     }
   };
 
@@ -218,11 +239,22 @@ export default function BoardPage() {
             )}
           </div>
         </div>
-        {canEditProject && (
-          <Button onClick={() => setShowCreateModal(true)} icon={<Plus className="w-4 h-4" />}>
-            {t('project.createProject')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="secondary"
+              onClick={() => navigate('/app/table?filter=deleted')}
+              icon={<Trash2 className="w-4 h-4" />}
+            >
+              {t('project.deletedProjects')}
+            </Button>
+          )}
+          {canEditProject && (
+            <Button onClick={() => setShowCreateModal(true)} icon={<Plus className="w-4 h-4" />}>
+              {t('project.createProject')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -279,6 +311,8 @@ export default function BoardPage() {
                 projects={getProjectsForStage(stage.id)}
                 onProjectClick={(documentId) => navigate(`/app/projects/${documentId}`)}
                 canDrag={canDragProjects}
+                canDeleteProject={canDeleteProject}
+                onDeleteProject={handleDeleteProject}
               />
             ))}
           </div>
@@ -314,6 +348,29 @@ export default function BoardPage() {
             </Button>
             <Button variant="primary" onClick={handleConfirmMove}>
               Переместить
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Project Modal */}
+      <Modal
+        isOpen={Boolean(deleteProject)}
+        onClose={() => setDeleteProject(null)}
+        title={t('project.deleteProject')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{t('project.deleteProjectConfirm')}</p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDeleteProject(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDelete} loading={isDeletingProject}>
+              {t('common.delete')}
             </Button>
           </div>
         </div>

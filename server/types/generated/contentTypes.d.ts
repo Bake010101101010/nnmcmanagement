@@ -733,7 +733,7 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
       'plugin::users-permissions.user'
     >;
     startDate: Schema.Attribute.Date;
-    status: Schema.Attribute.Enumeration<['ACTIVE', 'ARCHIVED']> &
+    status: Schema.Attribute.Enumeration<['ACTIVE', 'ARCHIVED', 'DELETED']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'ACTIVE'>;
     surveys: Schema.Attribute.Relation<
@@ -811,12 +811,14 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     description: Schema.Attribute.Text;
     dueDate: Schema.Attribute.Date;
+    endDate: Schema.Attribute.Date;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::task.task'> &
       Schema.Attribute.Private;
     order: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     project: Schema.Attribute.Relation<'manyToOne', 'api::project.project'>;
     publishedAt: Schema.Attribute.DateTime;
+    startDate: Schema.Attribute.Date;
     status: Schema.Attribute.Enumeration<['TODO', 'IN_PROGRESS', 'DONE']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'TODO'>;

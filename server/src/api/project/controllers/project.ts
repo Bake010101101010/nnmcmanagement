@@ -1,12 +1,50 @@
 import { factories } from '@strapi/strapi';
 
+async function checkSuperAdmin(
+  ctx: any,
+  strapi: any,
+  options: { throwOnFail?: boolean } = {}
+): Promise<boolean> {
+  const throwOnFail = options.throwOnFail !== false;
+  const user = ctx.state.user;
+  if (!user) {
+    if (throwOnFail) {
+      ctx.throw(401, 'Not authenticated');
+    }
+    return false;
+  }
+
+  const userWithRole = await strapi.entityService.findOne('plugin::users-permissions.user', user.id, {
+    populate: ['role'],
+  });
+
+  const roleName = (userWithRole?.role?.name || '').toLowerCase().replace(/\s+/g, '');
+  const roleType = (userWithRole?.role?.type || '').toLowerCase().replace(/\s+/g, '');
+
+  const allowedRoles = ['admin', 'superadmin', 'super_admin', 'суперадмин'];
+  const isAllowed = allowedRoles.some((role) => roleName.includes(role) || roleType.includes(role));
+
+  if (!isAllowed) {
+    if (throwOnFail) {
+      ctx.throw(403, 'Access denied. Only Super Admin can delete projects.');
+    }
+    return false;
+  }
+
+  return true;
+}
+
 export default factories.createCoreController('api::project.project', ({ strapi }) => ({
   async find(ctx) {
+    const isSuperAdmin = await checkSuperAdmin(ctx, strapi, { throwOnFail: false });
     const { data, meta } = await super.find(ctx);
+    const visibleData = isSuperAdmin
+      ? data
+      : data.filter((project: any) => project?.status !== 'DELETED');
     
     // Добавляем вычисляемые поля
     const enrichedData = await Promise.all(
-      data.map(async (project: any) => {
+      visibleData.map(async (project: any) => {
         return enrichProjectWithComputedFields(project);
       })
     );
@@ -40,9 +78,19 @@ export default factories.createCoreController('api::project.project', ({ strapi 
     
     const response = await super.findOne(ctx);
     if (response?.data) {
+      const isSuperAdmin = await checkSuperAdmin(ctx, strapi, { throwOnFail: false });
+      if (!isSuperAdmin && response.data.status === 'DELETED') {
+        ctx.throw(404, 'Project not found');
+        return;
+      }
       response.data = enrichProjectWithComputedFields(response.data);
     }
     return response;
+  },
+
+  async delete(ctx) {
+    await checkSuperAdmin(ctx, strapi);
+    return await super.delete(ctx);
   },
 }));
 

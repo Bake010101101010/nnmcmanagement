@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   Calendar,
   Users,
   Edit,
@@ -31,6 +33,7 @@ import Badge from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import PriorityLight from '../../components/ui/PriorityLight';
 import Loader from '../../components/ui/Loader';
+import Modal from '../../components/ui/Modal';
 import ProjectFormModal from '../../components/projects/ProjectFormModal';
 import TaskModal from '../../components/projects/TaskModal';
 import DocumentsSection from '../../components/projects/DocumentsSection';
@@ -45,6 +48,7 @@ export default function ProjectDetailPage() {
   // Получаем детальные права пользователя
   const {
     canEditProject,
+    canDeleteProject,
     canManageTasks,
     canDeleteTasks,
     canChangeTaskStatus,
@@ -54,12 +58,14 @@ export default function ProjectDetailPage() {
     canManageSurveys,
   } = useUserRole();
   
-  const { selectedProject: project, stages, isLoading, fetchProject, fetchStages } = useProjectStore();
+  const { selectedProject: project, stages, fetchProject, fetchStages } = useProjectStore();
 
   const [descriptionOpen, setDescriptionOpen] = useState(true);
   const [tasksOpen, setTasksOpen] = useState(true);
   const [meetingsOpen, setMeetingsOpen] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
   
   // Task modal states
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -90,6 +96,23 @@ export default function ProjectDetailPage() {
     }
   }, [project?.description]);
 
+  const sortTasks = (tasks: Task[]) =>
+    [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id);
+
+  const handleDeleteProject = async () => {
+    if (!project || !canDeleteProject) return;
+    setIsDeletingProject(true);
+    try {
+      await projectsApi.softDelete(project.documentId);
+      setShowDeleteProjectConfirm(false);
+      navigate(-1);
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
   // === TASK HANDLERS ===
   const handleOpenAddTask = () => {
     setEditingTask(undefined);
@@ -101,7 +124,13 @@ export default function ProjectDetailPage() {
     setShowTaskModal(true);
   };
 
-  const handleSaveTask = async (data: { title: string; description: string; status: Task['status'] }) => {
+  const handleSaveTask = async (data: {
+    title: string;
+    description: string;
+    status: Task['status'];
+    startDate?: string;
+    endDate?: string;
+  }) => {
     if (!project) return;
     
     if (editingTask) {
@@ -110,6 +139,8 @@ export default function ProjectDetailPage() {
         title: data.title,
         description: data.description,
         status: data.status,
+        startDate: data.startDate,
+        endDate: data.endDate,
       });
     } else {
       // Create new task
@@ -119,6 +150,8 @@ export default function ProjectDetailPage() {
         project: project.documentId,
         status: 'TODO',
         order: (project.tasks?.length || 0) + 1,
+        startDate: data.startDate,
+        endDate: data.endDate,
       });
     }
     fetchProject(id!);
@@ -145,6 +178,35 @@ export default function ProjectDetailPage() {
       fetchProject(id!);
     } catch (error) {
       console.error('Failed to delete task:', error);
+    }
+  };
+
+  const handleMoveTask = async (taskId: number, direction: 'up' | 'down') => {
+    if (!canManageTasks || !project) return;
+
+    const orderedTasks = sortTasks(project.tasks || []);
+    const currentIndex = orderedTasks.findIndex((task) => task.id === taskId);
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= orderedTasks.length) {
+      return;
+    }
+
+    const currentTask = orderedTasks[currentIndex];
+    const targetTask = orderedTasks[targetIndex];
+    const getOrderValue = (task: Task, fallback: number) =>
+      typeof task.order === 'number' && task.order > 0 ? task.order : fallback;
+    const currentOrder = getOrderValue(currentTask, currentIndex + 1);
+    const targetOrder = getOrderValue(targetTask, targetIndex + 1);
+
+    try {
+      await Promise.all([
+        tasksApi.update(currentTask.documentId, { order: targetOrder }),
+        tasksApi.update(targetTask.documentId, { order: currentOrder }),
+      ]);
+      fetchProject(id!);
+    } catch (error) {
+      console.error('Failed to reorder task:', error);
     }
   };
 
@@ -272,9 +334,13 @@ export default function ProjectDetailPage() {
     });
   };
 
-  if (isLoading || !project) {
+  const isProjectMismatch = Boolean(project?.documentId && id && project.documentId !== id);
+
+  if (!project || isProjectMismatch) {
     return <Loader text={t('common.loading')} />;
   }
+
+  const orderedTasks = sortTasks(project.tasks || []);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -304,7 +370,15 @@ export default function ProjectDetailPage() {
                   {getDepartmentName()}
                 </Badge>
               )}
-              <Badge variant={project.status === 'ACTIVE' ? 'success' : 'default'}>
+              <Badge
+                variant={
+                  project.status === 'ACTIVE'
+                    ? 'success'
+                    : project.status === 'DELETED'
+                    ? 'danger'
+                    : 'default'
+                }
+              >
                 {t(`status.${project.status}`)}
               </Badge>
               {project.overdue && (
@@ -325,15 +399,26 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {canEditProject && (
-            <Button
-              variant="secondary"
-              onClick={() => setShowEditModal(true)}
-              icon={<Edit className="w-4 h-4" />}
-            >
-              {t('common.edit')}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {canEditProject && project.status !== 'DELETED' && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowEditModal(true)}
+                icon={<Edit className="w-4 h-4" />}
+              >
+                {t('common.edit')}
+              </Button>
+            )}
+            {canDeleteProject && project.status !== 'DELETED' && (
+              <Button
+                variant="danger"
+                onClick={() => setShowDeleteProjectConfirm(true)}
+                icon={<Trash2 className="w-4 h-4" />}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Meta info */}
@@ -465,10 +550,10 @@ export default function ProjectDetailPage() {
           <div className="px-4 pb-4 pt-2">
             {/* Tasks list */}
             <div className="space-y-2">
-              {!project.tasks || project.tasks.length === 0 ? (
+              {orderedTasks.length === 0 ? (
                 <p className="text-slate-400 text-center py-4">{t('task.noTasks')}</p>
               ) : (
-                project.tasks.map((task) => (
+                orderedTasks.map((task, index) => (
                   <div
                     key={task.id}
                     className={`flex items-start gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors ${
@@ -495,6 +580,13 @@ export default function ProjectDetailPage() {
                       {task.description && (
                         <p className="text-sm text-slate-500 mt-1 line-clamp-2">{task.description}</p>
                       )}
+                      {(task.startDate || task.endDate) && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          {task.startDate ? formatDate(task.startDate) : '—'}
+                          {' — '}
+                          {task.endDate ? formatDate(task.endDate) : '—'}
+                        </p>
+                      )}
                       {task.assignee && (
                         <p className="text-xs text-slate-400 mt-1">
                           {t('task.assignee')}: {getUserDisplayName(task.assignee)}
@@ -503,6 +595,30 @@ export default function ProjectDetailPage() {
                     </div>
                     
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {canManageTasks && orderedTasks.length > 1 && (
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => handleMoveTask(task.id, 'up')}
+                            disabled={index === 0}
+                            className={`p-1 rounded text-slate-400 hover:text-slate-600 transition-colors ${
+                              index === 0 ? 'cursor-not-allowed opacity-40' : ''
+                            }`}
+                            title="Move up"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveTask(task.id, 'down')}
+                            disabled={index === orderedTasks.length - 1}
+                            className={`p-1 rounded text-slate-400 hover:text-slate-600 transition-colors ${
+                              index === orderedTasks.length - 1 ? 'cursor-not-allowed opacity-40' : ''
+                            }`}
+                            title="Move down"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded ${
                         task.status === 'DONE' ? 'bg-green-100 text-green-700' : 
                         task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
@@ -677,6 +793,26 @@ export default function ProjectDetailPage() {
         )}
       </Card>
 
+      {/* Delete Project Modal */}
+      <Modal
+        isOpen={showDeleteProjectConfirm}
+        onClose={() => setShowDeleteProjectConfirm(false)}
+        title={t('project.deleteProject')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">{t('project.deleteProjectConfirm')}</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setShowDeleteProjectConfirm(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handleDeleteProject} loading={isDeletingProject}>
+              {t('common.delete')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Edit Project Modal */}
       {showEditModal && (
         <ProjectFormModal
@@ -698,6 +834,7 @@ export default function ProjectDetailPage() {
           setEditingTask(undefined);
         }}
         onSave={handleSaveTask}
+        projectDueDate={project.dueDate}
       />
     </div>
   );

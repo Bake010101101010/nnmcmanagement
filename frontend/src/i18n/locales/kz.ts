@@ -86,6 +86,11 @@ export default {
     editProject: 'Жобаны өңдеу',
     archiveProject: 'Мұрағаттау',
     restoreProject: 'Қалпына келтіру',
+    deleteProject: 'Жобаны жою',
+    deleteProjectConfirm: 'Жобаны жоясыз ба? Ол "Жойылғандарға" ауыстырылады. Тек супер әкімші біржола жоя алады.',
+    deleteProjectPermanently: 'Біржола жою',
+    deleteProjectPermanentlyConfirm: 'Жобаны біржола жою керек пе? Бұл әрекетті қайтару мүмкін емес.',
+    deletedProjects: 'Жойылған жобалар',
     manualStage: 'Кезең (қолмен)',
     manualStageWarning: 'Кезең қолмен орнатылған',
     noProjects: 'Жобалар әлі жоқ',
@@ -233,6 +238,7 @@ export default {
   status: {
     ACTIVE: 'Белсенді',
     ARCHIVED: 'Мұрағатта',
+    DELETED: 'Жойылған',
   },
 
   // Priority

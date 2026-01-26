@@ -86,6 +86,11 @@ export default {
     editProject: 'Редактировать проект',
     archiveProject: 'Архивировать',
     restoreProject: 'Восстановить',
+    deleteProject: 'Удалить проект',
+    deleteProjectConfirm: 'Удалить проект? Он будет перемещен в "Удаленные". Только супер-админ может удалить навсегда.',
+    deleteProjectPermanently: 'Удалить навсегда',
+    deleteProjectPermanentlyConfirm: 'Удалить проект навсегда? Это действие нельзя отменить.',
+    deletedProjects: 'Удаленные проекты',
     manualStage: 'Стадия (вручную)',
     manualStageWarning: 'Стадия установлена вручную',
     noProjects: 'Проектов пока нет',
@@ -236,6 +241,7 @@ export default {
   status: {
     ACTIVE: 'Активный',
     ARCHIVED: 'В архиве',
+    DELETED: 'Удален',
   },
 
   // Priority

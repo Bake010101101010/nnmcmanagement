@@ -1,7 +1,65 @@
-﻿export default {
+import { errors } from '@strapi/utils';
+import { getRequestUserId } from '../../../../utils/activity-log';
+
+const { ValidationError } = errors;
+
+const normalizeDate = (value: unknown): string | null => {
+  if (!value) return null;
+  const date = new Date(value as string);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().split('T')[0];
+};
+
+const resolveProjectByWhere = async (where: any, strapi: any) => {
+  if (!where) return null;
+  if (where.id) {
+    return await strapi.entityService.findOne('api::project.project', where.id, {
+      fields: ['startDate', 'dueDate'],
+    });
+  }
+  if (where.documentId) {
+    return await strapi.documents('api::project.project').findOne({
+      documentId: where.documentId,
+      fields: ['startDate', 'dueDate'],
+    });
+  }
+  return null;
+};
+
+const validateProjectDates = async (event: any, strapi: any) => {
+  const data = event?.params?.data || {};
+  const hasStartDate = Object.prototype.hasOwnProperty.call(data, 'startDate');
+  const hasDueDate = Object.prototype.hasOwnProperty.call(data, 'dueDate');
+
+  let startDateValue = hasStartDate ? data.startDate : undefined;
+  let dueDateValue = hasDueDate ? data.dueDate : undefined;
+
+  if (!hasStartDate || !hasDueDate) {
+    const existing = await resolveProjectByWhere(event?.params?.where, strapi);
+    if (existing) {
+      if (!hasStartDate) startDateValue = existing.startDate;
+      if (!hasDueDate) dueDateValue = existing.dueDate;
+    }
+  }
+
+  const startDate = normalizeDate(startDateValue);
+  const dueDate = normalizeDate(dueDateValue);
+
+  if (!startDate || !dueDate) {
+    throw new ValidationError('Project start and due dates are required.');
+  }
+
+  if (dueDate < startDate) {
+    throw new ValidationError('Project due date cannot be earlier than start date.');
+  }
+};
+
+export default {
   async beforeCreate(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
+
+    await validateProjectDates(event, strapi);
 
     if (params?.data?.manualStageOverride) {
       return;
@@ -20,7 +78,7 @@
   async afterCreate(event: any) {
     const { result } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi);
 
     try {
       await strapi.entityService.create('api::activity-log.activity-log', {
@@ -37,10 +95,15 @@
     }
   },
 
+  async beforeUpdate(event: any) {
+    const strapi = (global as any).strapi;
+    await validateProjectDates(event, strapi);
+  },
+
   async afterUpdate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi);
 
     try {
       const data = params.data || {};

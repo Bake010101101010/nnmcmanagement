@@ -1,8 +1,10 @@
-﻿export default {
+import { getRequestUserId } from '../../../../utils/activity-log';
+
+export default {
   async afterCreate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? params.data?.uploadedBy ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi) ?? params.data?.uploadedBy ?? null;
 
     try {
       const projectId = params.data?.project ?? null;
@@ -29,7 +31,7 @@
   async beforeDelete(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi) ?? null;
 
     try {
       const doc = await strapi.entityService.findOne('api::project-document.project-document', params.where.id, {

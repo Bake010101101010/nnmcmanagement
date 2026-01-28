@@ -1,8 +1,10 @@
-﻿export default {
+import { getRequestUserId } from '../../../../utils/activity-log';
+
+export default {
   async afterCreate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? params.data?.author ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi) ?? params.data?.author ?? null;
 
     try {
       let projectId = null;
@@ -33,7 +35,7 @@
   async beforeDelete(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi) ?? null;
 
     try {
       const meeting = await strapi.entityService.findOne('api::meeting-note.meeting-note', params.where.id, {

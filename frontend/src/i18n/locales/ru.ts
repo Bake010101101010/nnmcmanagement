@@ -29,6 +29,33 @@ export default {
     logout: 'Выход',
   },
 
+
+  // Activity log
+  activityLog: {
+    title: 'История действий',
+    subtitle: 'Все действия пользователей в системе',
+    empty: 'Пока нет записей',
+    unknownUser: 'Неизвестный пользователь',
+    actions: {
+      createProject: 'Создал проект',
+      updateProject: 'Обновил проект',
+      deleteProject: 'Удалил проект',
+      moveStage: 'Переместил проект',
+      createTask: 'Добавил подзадачу',
+      markTask: 'Отметил подзадачу',
+      deleteTask: 'Удалил подзадачу',
+      createMeeting: 'Добавил заметку',
+      deleteMeeting: 'Удалил заметку',
+      createDocument: 'Добавил документ',
+      deleteDocument: 'Удалил документ',
+      assignUser: 'Назначил исполнителя',
+      archiveProject: 'Архивировал проект',
+      restoreProject: 'Восстановил проект',
+      updateTask: 'Обновил задачу',
+      updateMeeting: 'Обновил заметку',
+    },
+  },
+
   // Auth
   auth: {
     login: 'Вход',
@@ -95,6 +122,10 @@ export default {
     assignableUsersLoadError: 'Не удалось загрузить список исполнителей',
     assigneeDepartment: 'Отдел исполнителей',
     departmentRequired: 'Выберите отдел исполнителей',
+    startDateRequired: 'Укажите дату начала проекта',
+    dueDateRequired: 'Укажите дату окончания проекта',
+    dueDateBeforeStart: 'Дата окончания не может быть раньше даты начала',
+    deadlinesRequired: 'Дедлайны проекта обязательны',
     stage: 'Стадия',
     tasks: 'Подзадачи',
     meetings: 'Планёрки',

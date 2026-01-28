@@ -60,6 +60,7 @@ export default function ProjectFormModal({
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
   const [ownerError, setOwnerError] = useState('');
+  const [dateErrors, setDateErrors] = useState({ startDate: '', dueDate: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -149,6 +150,9 @@ export default function ProjectFormModal({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    if (field === 'startDate' || field === 'dueDate') {
+      setDateErrors((prev) => ({ ...prev, [field]: '' }));
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -156,6 +160,7 @@ export default function ProjectFormModal({
     setIsLoading(true);
     setError('');
     setOwnerError('');
+    setDateErrors({ startDate: '', dueDate: '' });
 
     try {
       const mustProvideOwner = canManageOwner || !project;
@@ -177,12 +182,38 @@ export default function ProjectFormModal({
         return;
       }
 
+      const dateValidation = { startDate: '', dueDate: '' };
+      if (!formData.startDate) {
+        dateValidation.startDate = t('project.startDateRequired');
+      }
+      if (!formData.dueDate) {
+        dateValidation.dueDate = t('project.dueDateRequired');
+      }
+      if (
+        formData.startDate &&
+        formData.dueDate &&
+        formData.dueDate < formData.startDate
+      ) {
+        dateValidation.dueDate = t('project.dueDateBeforeStart');
+      }
+
+      if (dateValidation.startDate || dateValidation.dueDate) {
+        setDateErrors(dateValidation);
+        const hasRangeError =
+          formData.startDate &&
+          formData.dueDate &&
+          formData.dueDate < formData.startDate;
+        setError(hasRangeError ? t('project.dueDateBeforeStart') : t('project.deadlinesRequired'));
+        setIsLoading(false);
+        return;
+      }
+
       const data: any = {
         title: formData.title,
         description: formData.description,
         department: selectedDepartmentId,
-        startDate: formData.startDate || undefined,
-        dueDate: formData.dueDate || undefined,
+        startDate: formData.startDate,
+        dueDate: formData.dueDate,
         priorityLight: formData.priorityLight as 'GREEN' | 'YELLOW' | 'RED',
         status: formData.status as 'ACTIVE' | 'ARCHIVED',
         supportingSpecialists: supportingIds.map((id) => parseInt(id)),
@@ -448,12 +479,16 @@ export default function ProjectFormModal({
             label={t('project.startDate')}
             value={formData.startDate}
             onChange={handleChange('startDate')}
+            error={dateErrors.startDate}
+            required
           />
           <Input
             type="date"
             label={t('project.dueDate')}
             value={formData.dueDate}
             onChange={handleChange('dueDate')}
+            error={dateErrors.dueDate}
+            required
           />
         </div>
 

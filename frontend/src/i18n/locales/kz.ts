@@ -29,6 +29,33 @@ export default {
     logout: 'Шығу',
   },
 
+
+  // Activity log
+  activityLog: {
+    title: 'Әрекеттер тарихы',
+    subtitle: 'Жүйедегі барлық пайдаланушылардың әрекеттері',
+    empty: 'Әзірге жазбалар жоқ',
+    unknownUser: 'Белгісіз пайдаланушы',
+    actions: {
+      createProject: 'Жоба құрды',
+      updateProject: 'Жобаны жаңартты',
+      deleteProject: 'Жобаны өшірді',
+      moveStage: 'Жобаны жылжытты',
+      createTask: 'Қосымша тапсырма қосты',
+      markTask: 'Қосымша тапсырманы белгіледі',
+      deleteTask: 'Қосымша тапсырманы өшірді',
+      createMeeting: 'Ескертпе қосты',
+      deleteMeeting: 'Ескертпені өшірді',
+      createDocument: 'Құжат қосты',
+      deleteDocument: 'Құжатты өшірді',
+      assignUser: 'Орындаушыны тағайындады',
+      archiveProject: 'Жобаны мұрағаттады',
+      restoreProject: 'Жобаны қалпына келтірді',
+      updateTask: 'Тапсырманы жаңартты',
+      updateMeeting: 'Ескертпені жаңартты',
+    },
+  },
+
   // Auth
   auth: {
     login: 'Кіру',
@@ -95,6 +122,10 @@ export default {
     assignableUsersLoadError: 'Орындаушылар тізімін жүктеу сәтсіз аяқталды',
     assigneeDepartment: 'Орындаушылар бөлімі',
     departmentRequired: 'Орындаушылар бөлімін таңдаңыз',
+    startDateRequired: 'Жоба басталу күнін көрсетіңіз',
+    dueDateRequired: 'Жоба аяқталу күнін көрсетіңіз',
+    dueDateBeforeStart: 'Аяқталу күні басталу күнінен ерте болмауы керек',
+    deadlinesRequired: 'Жоба дедлайндары міндетті',
     stage: 'Кезең',
     tasks: 'Тапсырмалар',
     meetings: 'Жиналыстар',

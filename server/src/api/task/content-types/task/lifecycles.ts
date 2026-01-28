@@ -1,4 +1,5 @@
-﻿import { errors } from '@strapi/utils';
+import { errors } from '@strapi/utils';
+import { getRequestUserId } from '../../../../utils/activity-log';
 
 const { ValidationError } = errors;
 
@@ -115,7 +116,7 @@ export default {
   async afterCreate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi);
 
     try {
       let projectId = null;
@@ -146,7 +147,7 @@ export default {
   async afterUpdate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi);
 
     try {
       const task = await strapi.entityService.findOne('api::task.task', result.id, {
@@ -195,7 +196,7 @@ export default {
   async beforeDelete(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
-    const userId = event?.state?.user?.id ?? null;
+    const userId = event?.state?.user?.id ?? getRequestUserId(strapi);
 
     try {
       const task = await strapi.entityService.findOne('api::task.task', params.where.id, {

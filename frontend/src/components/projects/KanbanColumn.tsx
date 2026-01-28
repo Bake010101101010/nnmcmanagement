@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -5,26 +6,38 @@ import type { Project, BoardStage } from '../../types';
 import ProjectCard from './ProjectCard';
 
 interface KanbanColumnProps {
-  stage: BoardStage;
+  stage?: BoardStage;
+  columnKey: string;
   stageName: string;
+  icon?: ReactNode;
+  iconClassName?: string;
+  iconBgClassName?: string;
   projects: Project[];
   onProjectClick: (documentId: string) => void;
   canDrag: boolean;
   canDeleteProject?: boolean;
   onDeleteProject?: (project: Project) => void;
+  onShowDescription?: (columnKey: string) => void;
+  descriptionLabel?: string;
 }
 
 export default function KanbanColumn({
   stage,
+  columnKey,
   stageName,
+  icon,
+  iconClassName,
+  iconBgClassName,
   projects,
   onProjectClick,
   canDrag,
   canDeleteProject,
   onDeleteProject,
+  onShowDescription,
+  descriptionLabel,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
-    id: stage.id,
+    id: columnKey,
   });
 
   return (
@@ -37,18 +50,18 @@ export default function KanbanColumn({
       {/* Column Header */}
       <div className="p-4 pb-2">
         <div className="flex items-center gap-2">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: stage.color }}
-          />
+          {icon && (
+            <span
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-md border ${iconBgClassName ?? 'border-slate-200 bg-white'} ${iconClassName ?? 'text-slate-500'}`}
+            >
+              {icon}
+            </span>
+          )}
           <h3 className="font-semibold text-slate-700">{stageName}</h3>
           <span className="ml-auto px-2 py-0.5 bg-white rounded-full text-xs font-medium text-slate-500">
             {projects.length}
           </span>
         </div>
-        <p className="text-xs text-slate-400 mt-1">
-          {stage.minPercent}% – {stage.maxPercent}%
-        </p>
       </div>
 
       {/* Projects */}
@@ -70,6 +83,18 @@ export default function KanbanColumn({
           ))
         )}
       </div>
+
+      {onShowDescription && descriptionLabel && (
+        <div className="p-2 pt-0">
+          <button
+            type="button"
+            onClick={() => onShowDescription(columnKey)}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:border-primary-300 hover:text-primary-600 transition-colors"
+          >
+            {descriptionLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

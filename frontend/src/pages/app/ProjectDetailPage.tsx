@@ -8,6 +8,7 @@ import {
   ArrowDown,
   Calendar,
   Users,
+  Shield,
   Edit,
   ChevronDown,
   ChevronUp,
@@ -26,7 +27,7 @@ import { useAuthStore, useUserRole } from '../../store/authStore';
 import { projectsApi } from '../../api/projects';
 import { tasksApi } from '../../api/tasks';
 import { meetingsApi } from '../../api/meetings';
-import type { Task, MeetingNote } from '../../types';
+import type { Task, MeetingNote, Department } from '../../types';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -47,6 +48,9 @@ export default function ProjectDetailPage() {
   
   // Получаем детальные права пользователя
   const {
+    isAdmin,
+    isLead,
+    isSuperAdmin,
     canEditProject,
     canDeleteProject,
     canManageTasks,
@@ -57,6 +61,7 @@ export default function ProjectDetailPage() {
     canManageDocuments,
     canManageSurveys,
   } = useUserRole();
+  const canManageOwner = isAdmin || isLead;
   
   const { selectedProject: project, stages, fetchProject, fetchStages } = useProjectStore();
 
@@ -98,6 +103,7 @@ export default function ProjectDetailPage() {
 
   const sortTasks = (tasks: Task[]) =>
     [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id - b.id);
+  const isTaskComplete = (task: Task) => Boolean(task.completed);
 
   const handleDeleteProject = async () => {
     if (!project || !canDeleteProject) return;
@@ -127,18 +133,20 @@ export default function ProjectDetailPage() {
   const handleSaveTask = async (data: {
     title: string;
     description: string;
-    status: Task['status'];
+    completed: boolean;
+    assigneeId?: number;
     startDate?: string;
     endDate?: string;
   }) => {
     if (!project) return;
-    
+
     if (editingTask) {
       // Update existing task
       await tasksApi.update(editingTask.documentId, {
         title: data.title,
         description: data.description,
-        status: data.status,
+        completed: data.completed,
+        assignee: data.assigneeId ?? null,
         startDate: data.startDate,
         endDate: data.endDate,
       });
@@ -148,7 +156,8 @@ export default function ProjectDetailPage() {
         title: data.title,
         description: data.description,
         project: project.documentId,
-        status: 'TODO',
+        completed: data.completed,
+        assignee: data.assigneeId,
         order: (project.tasks?.length || 0) + 1,
         startDate: data.startDate,
         endDate: data.endDate,
@@ -157,14 +166,11 @@ export default function ProjectDetailPage() {
     fetchProject(id!);
   };
 
-  const handleTaskStatusChange = async (task: Task) => {
+  const handleTaskCompletionToggle = async (task: Task) => {
     if (!canChangeTaskStatus) return;
-    
-    // Toggle: TODO -> DONE, DONE -> TODO
-    const newStatus = task.status === 'DONE' ? 'TODO' : 'DONE';
-    
+
     try {
-      await tasksApi.updateStatus(task.documentId, newStatus);
+      await tasksApi.update(task.documentId, { completed: !task.completed });
       fetchProject(id!);
     } catch (error) {
       console.error('Failed to update task:', error);
@@ -304,16 +310,33 @@ export default function ProjectDetailPage() {
   };
 
   // === HELPERS ===
-  const getDepartmentName = () => {
-    if (!project?.department) return '';
-    return i18n.language === 'kz' ? project.department.name_kz : project.department.name_ru;
+  const getDepartmentLabel = (department?: Department | null) => {
+    if (!department) return '';
+    return i18n.language === 'kz' ? department.name_kz : department.name_ru;
+  };
+
+  const getDepartmentName = () => getDepartmentLabel(project?.department);
+
+  const bucketOrder = (order?: number | null) => {
+    if (!order || !Number.isFinite(order)) return 1;
+    if (order <= 1) return 1;
+    if (order >= 5) return 5;
+    return Math.round(order);
+  };
+
+  const workflowTitleByOrder: Record<number, string> = {
+    1: t('workflow.ideas.title'),
+    2: t('workflow.preparation.title'),
+    3: t('workflow.inProgress.title'),
+    4: t('workflow.testing.title'),
+    5: t('workflow.production.title'),
   };
 
   const getStageName = () => {
     if (!project) return '';
     const stage = getProjectStage(project, stages);
     if (!stage) return '';
-    return i18n.language === 'kz' ? stage.name_kz : stage.name_ru;
+    return workflowTitleByOrder[bucketOrder(stage.order)] || workflowTitleByOrder[1];
   };
 
   const formatDate = (dateStr?: string) => {
@@ -341,6 +364,11 @@ export default function ProjectDetailPage() {
   }
 
   const orderedTasks = sortTasks(project.tasks || []);
+  const ownerName = project.owner ? getUserDisplayName(project.owner) : t('project.ownerNotAssigned');
+  const ownerDepartmentName = getDepartmentLabel(project.owner?.department);
+  const ownerScopeHint = isSuperAdmin
+    ? t('project.ownerAnyDepartment')
+    : t('project.ownerSameDepartment');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -392,9 +420,6 @@ export default function ProjectDetailPage() {
                   <Clock className="w-3 h-3 mr-1" />
                   {t('project.dueSoon')}
                 </Badge>
-              )}
-              {project.manualStageOverride && (
-                <Badge variant="info">{t('project.manualStageWarning')}</Badge>
               )}
             </div>
           </div>
@@ -448,6 +473,40 @@ export default function ProjectDetailPage() {
               {project.responsibleUsers?.length || 0}
             </p>
           </div>
+        </div>
+
+        {/* Owner */}
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-2 text-primary-600">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">
+                  {t('project.ownerSection')}
+                </p>
+                <p className="text-sm font-semibold text-slate-800">{ownerName}</p>
+                {ownerDepartmentName && (
+                  <p className="text-xs text-slate-500">{ownerDepartmentName}</p>
+                )}
+              </div>
+            </div>
+            {canManageOwner && project.status !== 'DELETED' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowEditModal(true)}
+                icon={<Edit className="w-4 h-4" />}
+              >
+                {t('common.edit')}
+              </Button>
+            )}
+          </div>
+          <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+            <Users className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+            <span>{ownerScopeHint}</span>
+          </p>
         </div>
 
         {/* Progress */}
@@ -553,28 +612,31 @@ export default function ProjectDetailPage() {
               {orderedTasks.length === 0 ? (
                 <p className="text-slate-400 text-center py-4">{t('task.noTasks')}</p>
               ) : (
-                orderedTasks.map((task, index) => (
-                  <div
-                    key={task.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors ${
-                      task.status === 'DONE' ? 'opacity-60' : ''
-                    }`}
-                  >
+                orderedTasks.map((task, index) => {
+                  const complete = isTaskComplete(task);
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors ${
+                        complete ? 'opacity-60' : ''
+                      }`}
+                    >
                     <button
-                      onClick={() => handleTaskStatusChange(task)}
+                      onClick={() => handleTaskCompletionToggle(task)}
                       disabled={!canChangeTaskStatus}
                       className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 mt-0.5 ${
-                        task.status === 'DONE' 
+                        complete 
                           ? 'bg-green-500 border-green-500' 
                           : 'bg-white border-slate-300 hover:border-green-400'
                       } ${canChangeTaskStatus ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                      title={task.status === 'DONE' ? 'Отметить как невыполненное' : 'Отметить как выполненное'}
+                      title={complete ? t('task.markIncomplete') : t('task.markComplete')}
                     >
-                      {task.status === 'DONE' && <Check className="w-4 h-4 text-white" />}
+                      {complete && <Check className="w-4 h-4 text-white" />}
                     </button>
                     
                     <div className="flex-1 min-w-0">
-                      <span className={`block ${task.status === 'DONE' ? 'line-through text-slate-500' : 'text-slate-800'}`}>
+                      <span className={`block ${complete ? 'line-through text-slate-500' : 'text-slate-800'}`}>
                         {task.title}
                       </span>
                       {task.description && (
@@ -587,12 +649,15 @@ export default function ProjectDetailPage() {
                           {task.endDate ? formatDate(task.endDate) : '—'}
                         </p>
                       )}
-                      {task.assignee && (
+                        {task.assignee && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            {t('task.assignee')}: {getUserDisplayName(task.assignee)}
+                          </p>
+                        )}
                         <p className="text-xs text-slate-400 mt-1">
-                          {t('task.assignee')}: {getUserDisplayName(task.assignee)}
+                          {complete ? t('task.done') : t('task.todo')}
                         </p>
-                      )}
-                    </div>
+                      </div>
                     
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {canManageTasks && orderedTasks.length > 1 && (
@@ -619,13 +684,9 @@ export default function ProjectDetailPage() {
                           </button>
                         </div>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        task.status === 'DONE' ? 'bg-green-100 text-green-700' : 
-                        task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                        'bg-slate-200 text-slate-600'
-                      }`}>
-                        {t(`task.${task.status.toLowerCase()}`)}
-                      </span>
+                      <Badge variant={complete ? 'success' : 'default'}>
+                        {complete ? t('task.done') : t('task.todo')}
+                      </Badge>
                       {/* Просмотр/редактирование - для Lead/Admin */}
                       {canManageTasks && (
                         <button
@@ -648,7 +709,8 @@ export default function ProjectDetailPage() {
                       )}
                     </div>
                   </div>
-                ))
+                );
+                })
               )}
             </div>
           </div>
@@ -835,6 +897,8 @@ export default function ProjectDetailPage() {
         }}
         onSave={handleSaveTask}
         projectDueDate={project.dueDate}
+        projectDepartmentKey={project.department?.key}
+        projectDepartmentName={getDepartmentName()}
       />
     </div>
   );

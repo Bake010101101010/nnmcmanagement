@@ -1,4 +1,4 @@
-import { errors } from '@strapi/utils';
+﻿import { errors } from '@strapi/utils';
 
 const { ValidationError } = errors;
 
@@ -79,12 +79,29 @@ const validateTaskDates = async (params: any, strapi: any) => {
   }
 };
 
+const validateTaskCompletion = (params: any) => {
+  if (!params?.data) return;
+  if (Object.prototype.hasOwnProperty.call(params.data, 'completed')) {
+    params.data.completed = Boolean(params.data.completed);
+  }
+  if (Object.prototype.hasOwnProperty.call(params.data, 'progress')) {
+    delete params.data.progress;
+  }
+  if (Object.prototype.hasOwnProperty.call(params.data, 'status')) {
+    delete params.data.status;
+  }
+  if (Object.prototype.hasOwnProperty.call(params.data, 'subtasks')) {
+    delete params.data.subtasks;
+  }
+};
+
 export default {
   async beforeCreate(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
 
     await validateTaskDates(params, strapi);
+    validateTaskCompletion(params);
   },
 
   async beforeUpdate(event: any) {
@@ -92,17 +109,18 @@ export default {
     const strapi = (global as any).strapi;
 
     await validateTaskDates(params, strapi);
+    validateTaskCompletion(params);
   },
 
   async afterCreate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    
+    const userId = event?.state?.user?.id ?? null;
+
     try {
-      // Получаем проект для логирования
       let projectId = null;
       let projectTitle = '';
-      
+
       if (params.data?.project) {
         const project = await strapi.entityService.findOne('api::project.project', params.data.project);
         if (project) {
@@ -110,12 +128,13 @@ export default {
           projectTitle = project.title;
         }
       }
-      
+
       await strapi.entityService.create('api::activity-log.activity-log', {
         data: {
           action: 'CREATE_TASK',
           description: `Добавлена задача "${result.title}" в проект "${projectTitle}"`,
           project: projectId,
+          user: userId,
           metadata: { taskTitle: result.title, projectTitle },
         },
       });
@@ -127,34 +146,47 @@ export default {
   async afterUpdate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    
+    const userId = event?.state?.user?.id ?? null;
+
     try {
-      // Получаем проект для логирования
       const task = await strapi.entityService.findOne('api::task.task', result.id, {
         populate: ['project'],
       });
-      
+
       const projectTitle = task?.project?.title || '';
       const projectId = task?.project?.id || null;
-      
-      let description = `Обновлена задача "${result.title}"`;
-      if (params.data?.status) {
-        const statusLabels: Record<string, string> = {
-          'TODO': 'К выполнению',
-          'IN_PROGRESS': 'В работе',
-          'DONE': 'Выполнено',
-        };
-        description = `Изменён статус задачи "${result.title}" на "${statusLabels[params.data.status] || params.data.status}"`;
+
+      const logEntries: Array<{ action: string; description: string; metadata?: any }> = [];
+
+      if (Object.prototype.hasOwnProperty.call(params.data || {}, 'completed')) {
+        logEntries.push({
+          action: 'MARK_TASK',
+          description: params.data.completed
+            ? `Отмечена выполненной задача "${result.title}"`
+            : `Снята отметка выполнения с задачи "${result.title}"`,
+          metadata: { taskTitle: result.title, projectTitle },
+        });
       }
-      
-      await strapi.entityService.create('api::activity-log.activity-log', {
-        data: {
-          action: 'UPDATE_TASK',
-          description,
-          project: projectId,
-          metadata: { taskTitle: result.title, projectTitle, changes: Object.keys(params.data || {}) },
-        },
-      });
+
+      if (Object.prototype.hasOwnProperty.call(params.data || {}, 'assignee')) {
+        logEntries.push({
+          action: 'ASSIGN_USER',
+          description: `Назначен исполнитель задачи "${result.title}"`,
+          metadata: { taskTitle: result.title, projectTitle },
+        });
+      }
+
+      for (const entry of logEntries) {
+        await strapi.entityService.create('api::activity-log.activity-log', {
+          data: {
+            action: entry.action,
+            description: entry.description,
+            project: projectId,
+            user: userId,
+            metadata: entry.metadata || { taskTitle: result.title, projectTitle },
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to log task activity:', error);
     }
@@ -163,22 +195,23 @@ export default {
   async beforeDelete(event: any) {
     const { params } = event;
     const strapi = (global as any).strapi;
-    
+    const userId = event?.state?.user?.id ?? null;
+
     try {
-      // Получаем данные задачи до удаления
       const task = await strapi.entityService.findOne('api::task.task', params.where.id, {
         populate: ['project'],
       });
-      
+
       if (task) {
         const projectTitle = task?.project?.title || '';
         const projectId = task?.project?.id || null;
-        
+
         await strapi.entityService.create('api::activity-log.activity-log', {
           data: {
             action: 'DELETE_TASK',
             description: `Удалена задача "${task.title}" из проекта "${projectTitle}"`,
             project: projectId,
+            user: userId,
             metadata: { taskTitle: task.title, projectTitle },
           },
         });

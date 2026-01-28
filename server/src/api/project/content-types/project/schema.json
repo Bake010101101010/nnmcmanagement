@@ -42,6 +42,17 @@
       "enum": ["GREEN", "YELLOW", "RED"],
       "default": "GREEN"
     },
+    "owner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "required": true
+    },
+    "supportingSpecialists": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user"
+    },
     "responsibleUsers": {
       "type": "relation",
       "relation": "manyToMany",

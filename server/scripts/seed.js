@@ -1,274 +1,347 @@
-'use strict';
+﻿'use strict';
 
-const fs = require('fs-extra');
-const path = require('path');
-const mime = require('mime-types');
-const { categories, authors, articles, global, about } = require('../data/data.json');
+const seedData = async () => {
+  const strapi = global.strapi;
 
-async function seedExampleApp() {
-  const shouldImportSeedData = await isFirstRun();
+  console.log('🌱 Starting seed...');
 
-  if (shouldImportSeedData) {
-    try {
-      console.log('Setting up the template...');
-      await importSeedData();
-      console.log('Ready to go');
-    } catch (error) {
-      console.log('Could not import seed data');
-      console.error(error);
+  // 1. Seed Departments
+  console.log('📁 Creating departments...');
+  const departments = [
+    { key: 'IT', name_ru: 'Отдел IT', name_kz: 'IT бөлімі' },
+    { key: 'DIGITALIZATION', name_ru: 'Отдел цифровизации', name_kz: 'Цифрландыру бөлімі' },
+  ];
+
+  const createdDepartments = {};
+  for (const dept of departments) {
+    const existing = await strapi.entityService.findMany('api::department.department', {
+      filters: { key: dept.key },
+    });
+
+    if (existing.length === 0) {
+      const created = await strapi.entityService.create('api::department.department', {
+        data: dept,
+      });
+      createdDepartments[dept.key] = created;
+      console.log(`  ✅ Created department: ${dept.name_ru}`);
+    } else {
+      createdDepartments[dept.key] = existing[0];
+      console.log(`  ⚠️ Department exists: ${dept.name_ru}`);
     }
-  } else {
-    console.log(
-      'Seed data has already been imported. We cannot reimport unless you clear your database first.'
-    );
   }
-}
 
-async function isFirstRun() {
-  const pluginStore = strapi.store({
-    environment: strapi.config.environment,
-    type: 'type',
-    name: 'setup',
-  });
-  const initHasRun = await pluginStore.get({ key: 'initHasRun' });
-  await pluginStore.set({ key: 'initHasRun', value: true });
-  return !initHasRun;
-}
+  // 2. Seed Users
+  console.log('👥 Creating users...');
 
-async function setPublicPermissions(newPermissions) {
-  // Find the ID of the public role
-  const publicRole = await strapi.query('plugin::users-permissions.role').findOne({
-    where: {
-      type: 'public',
+  const roles = await strapi.entityService.findMany('plugin::users-permissions.role');
+  const normalizeRole = (value) => value.toLowerCase().replace(/\s+/g, '').replace(/[_-]/g, '');
+  const findRole = (candidates) =>
+    roles.find((role) => {
+      const roleName = normalizeRole(role.name || '');
+      const roleType = normalizeRole(role.type || '');
+      return candidates.some((candidate) => roleName.includes(candidate) || roleType.includes(candidate));
+    });
+
+  const leadRole = findRole(['lead', 'руководитель']);
+  const memberRole = findRole(['member', 'authenticated']);
+  const fallbackRole = roles[0];
+  const resolveRoleId = (role) => (role || memberRole || fallbackRole)?.id;
+
+  const usersToSeed = [
+    {
+      key: 'IT_LEAD',
+      username: 'it.lead',
+      email: 'it.lead@example.com',
+      firstName: 'IT',
+      lastName: 'Lead',
+      departmentKey: 'IT',
+      roleId: resolveRoleId(leadRole),
     },
-  });
+    {
+      key: 'DIGITAL_LEAD',
+      username: 'digital.lead',
+      email: 'digital.lead@example.com',
+      firstName: 'Digital',
+      lastName: 'Lead',
+      departmentKey: 'DIGITALIZATION',
+      roleId: resolveRoleId(leadRole),
+    },
+    {
+      key: 'IT_MEMBER',
+      username: 'it.member',
+      email: 'it.member@example.com',
+      firstName: 'IT',
+      lastName: 'Member',
+      departmentKey: 'IT',
+      roleId: resolveRoleId(memberRole),
+    },
+    {
+      key: 'DIGITAL_MEMBER',
+      username: 'digital.member',
+      email: 'digital.member@example.com',
+      firstName: 'Digital',
+      lastName: 'Member',
+      departmentKey: 'DIGITALIZATION',
+      roleId: resolveRoleId(memberRole),
+    },
+  ];
 
-  // Create the new permissions and link them to the public role
-  const allPermissionsToCreate = [];
-  Object.keys(newPermissions).map((controller) => {
-    const actions = newPermissions[controller];
-    const permissionsToCreate = actions.map((action) => {
-      return strapi.query('plugin::users-permissions.permission').create({
+  const createdUsers = {};
+
+  for (const seedUser of usersToSeed) {
+    const existing = await strapi.entityService.findMany('plugin::users-permissions.user', {
+      filters: {
+        $or: [{ email: seedUser.email }, { username: seedUser.username }],
+      },
+    });
+
+    let user = existing[0];
+    if (!user) {
+      user = await strapi.entityService.create('plugin::users-permissions.user', {
         data: {
-          action: `api::${controller}.${controller}.${action}`,
-          role: publicRole.id,
+          email: seedUser.email,
+          username: seedUser.username,
+          firstName: seedUser.firstName,
+          lastName: seedUser.lastName,
+          password: 'Password123!',
+          role: seedUser.roleId,
+          department: createdDepartments[seedUser.departmentKey]?.id,
+          confirmed: true,
+          blocked: false,
+          provider: 'local',
         },
       });
-    });
-    allPermissionsToCreate.push(...permissionsToCreate);
-  });
-  await Promise.all(allPermissionsToCreate);
-}
-
-function getFileSizeInBytes(filePath) {
-  const stats = fs.statSync(filePath);
-  const fileSizeInBytes = stats['size'];
-  return fileSizeInBytes;
-}
-
-function getFileData(fileName) {
-  const filePath = path.join('data', 'uploads', fileName);
-  // Parse the file metadata
-  const size = getFileSizeInBytes(filePath);
-  const ext = fileName.split('.').pop();
-  const mimeType = mime.lookup(ext || '') || '';
-
-  return {
-    filepath: filePath,
-    originalFileName: fileName,
-    size,
-    mimetype: mimeType,
-  };
-}
-
-async function uploadFile(file, name) {
-  return strapi
-    .plugin('upload')
-    .service('upload')
-    .upload({
-      files: file,
-      data: {
-        fileInfo: {
-          alternativeText: `An image uploaded to Strapi called ${name}`,
-          caption: name,
-          name,
-        },
-      },
-    });
-}
-
-// Create an entry and attach files if there are any
-async function createEntry({ model, entry }) {
-  try {
-    // Actually create the entry in Strapi
-    await strapi.documents(`api::${model}.${model}`).create({
-      data: entry,
-    });
-  } catch (error) {
-    console.error({ model, entry, error });
-  }
-}
-
-async function checkFileExistsBeforeUpload(files) {
-  const existingFiles = [];
-  const uploadedFiles = [];
-  const filesCopy = [...files];
-
-  for (const fileName of filesCopy) {
-    // Check if the file already exists in Strapi
-    const fileWhereName = await strapi.query('plugin::upload.file').findOne({
-      where: {
-        name: fileName.replace(/\..*$/, ''),
-      },
-    });
-
-    if (fileWhereName) {
-      // File exists, don't upload it
-      existingFiles.push(fileWhereName);
+      console.log(`  ✅ Created user: ${seedUser.email}`);
     } else {
-      // File doesn't exist, upload it
-      const fileData = getFileData(fileName);
-      const fileNameNoExtension = fileName.split('.').shift();
-      const [file] = await uploadFile(fileData, fileNameNoExtension);
-      uploadedFiles.push(file);
+      console.log(`  ⚠️ User exists: ${seedUser.email}`);
     }
-  }
-  const allFiles = [...existingFiles, ...uploadedFiles];
-  // If only one file then return only that file
-  return allFiles.length === 1 ? allFiles[0] : allFiles;
-}
 
-async function updateBlocks(blocks) {
-  const updatedBlocks = [];
-  for (const block of blocks) {
-    if (block.__component === 'shared.media') {
-      const uploadedFiles = await checkFileExistsBeforeUpload([block.file]);
-      // Copy the block to not mutate directly
-      const blockCopy = { ...block };
-      // Replace the file name on the block with the actual file
-      blockCopy.file = uploadedFiles;
-      updatedBlocks.push(blockCopy);
-    } else if (block.__component === 'shared.slider') {
-      // Get files already uploaded to Strapi or upload new files
-      const existingAndUploadedFiles = await checkFileExistsBeforeUpload(block.files);
-      // Copy the block to not mutate directly
-      const blockCopy = { ...block };
-      // Replace the file names on the block with the actual files
-      blockCopy.files = existingAndUploadedFiles;
-      // Push the updated block
-      updatedBlocks.push(blockCopy);
+    createdUsers[seedUser.key] = user;
+  }
+
+  // 3. Seed BoardStages
+  console.log('📊 Creating board stages...');
+  const stages = [
+    {
+      name_ru: 'Идеи / Запросы',
+      name_kz: 'Идеялар / Сұраныстар',
+      minPercent: 0,
+      maxPercent: 10,
+      order: 1,
+      color: '#64748B',
+    },
+    {
+      name_ru: 'Подготовка к проекту (ТЗ, аналитика)',
+      name_kz: 'Жобаға дайындық (ТТ, талдау)',
+      minPercent: 10,
+      maxPercent: 20,
+      order: 2,
+      color: '#0EA5E9',
+    },
+    {
+      name_ru: 'В работе',
+      name_kz: 'Жұмыста',
+      minPercent: 20,
+      maxPercent: 70,
+      order: 3,
+      color: '#F97316',
+    },
+    {
+      name_ru: 'Тестирование',
+      name_kz: 'Тестілеу',
+      minPercent: 70,
+      maxPercent: 90,
+      order: 4,
+      color: '#EAB308',
+    },
+    {
+      name_ru: 'В промышленной эксплуатации',
+      name_kz: 'Өнеркәсіптік пайдалануда',
+      minPercent: 90,
+      maxPercent: 101,
+      order: 5,
+      color: '#22C55E',
+    },
+  ];
+
+  const createdStages = [];
+  for (const stage of stages) {
+    const existing = await strapi.entityService.findMany('api::board-stage.board-stage', {
+      filters: { order: stage.order },
+    });
+
+    if (existing.length === 0) {
+      const created = await strapi.entityService.create('api::board-stage.board-stage', {
+        data: stage,
+      });
+      createdStages.push(created);
+      console.log(`  ✅ Created stage: ${stage.name_ru}`);
     } else {
-      // Just push the block as is
-      updatedBlocks.push(block);
+      const existingStage = existing[0];
+      const updated = await strapi.entityService.update('api::board-stage.board-stage', existingStage.id, {
+        data: stage,
+      });
+      createdStages.push(updated);
+      console.log(`  🔄 Updated stage: ${stage.name_ru}`);
     }
   }
 
-  return updatedBlocks;
-}
+  // 4. Seed sample projects
+  console.log('🚀 Creating sample projects...');
 
-async function importArticles() {
-  for (const article of articles) {
-    const cover = await checkFileExistsBeforeUpload([`${article.slug}.jpg`]);
-    const updatedBlocks = await updateBlocks(article.blocks);
+  const fallbackOwnerId =
+    createdUsers.IT_LEAD?.id ||
+    createdUsers.DIGITAL_LEAD?.id ||
+    createdUsers.IT_MEMBER?.id ||
+    createdUsers.DIGITAL_MEMBER?.id;
 
-    await createEntry({
-      model: 'article',
-      entry: {
-        ...article,
-        cover,
-        blocks: updatedBlocks,
-        // Make sure it's not a draft
-        publishedAt: Date.now(),
-      },
-    });
+  if (!fallbackOwnerId) {
+    throw new Error('Seed users were not created');
   }
-}
 
-async function importGlobal() {
-  const favicon = await checkFileExistsBeforeUpload(['favicon.png']);
-  const shareImage = await checkFileExistsBeforeUpload(['default-image.png']);
-  return createEntry({
-    model: 'global',
-    entry: {
-      ...global,
-      favicon,
-      // Make sure it's not a draft
-      publishedAt: Date.now(),
-      defaultSeo: {
-        ...global.defaultSeo,
-        shareImage,
-      },
+  const itOwnerId = createdUsers.IT_LEAD?.id || fallbackOwnerId;
+  const digitalOwnerId = createdUsers.DIGITAL_LEAD?.id || fallbackOwnerId;
+  const itSupportingId = createdUsers.IT_MEMBER?.id || createdUsers.IT_LEAD?.id;
+  const digitalSupportingId = createdUsers.DIGITAL_MEMBER?.id || createdUsers.DIGITAL_LEAD?.id;
+
+  const sampleProjects = [
+    {
+      title: 'Внедрение МИС "Damumed"',
+      description: 'Интеграция медицинской информационной системы во все подразделения',
+      department: createdDepartments['DIGITALIZATION'].id,
+      startDate: '2024-01-15',
+      dueDate: '2024-06-30',
+      status: 'ACTIVE',
+      priorityLight: 'RED',
+      owner: digitalOwnerId,
+      supportingSpecialists: [digitalSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'Анализ требований', completed: true, order: 1 },
+        { title: 'Настройка серверной инфраструктуры', completed: false, order: 2 },
+        { title: 'Миграция данных пациентов', completed: false, order: 3 },
+        { title: 'Обучение персонала', completed: false, order: 4 },
+        { title: 'Тестирование', completed: false, order: 5 },
+      ],
     },
-  });
-}
-
-async function importAbout() {
-  const updatedBlocks = await updateBlocks(about.blocks);
-
-  await createEntry({
-    model: 'about',
-    entry: {
-      ...about,
-      blocks: updatedBlocks,
-      // Make sure it's not a draft
-      publishedAt: Date.now(),
+    {
+      title: 'Обновление сетевой инфраструктуры',
+      description: 'Замена коммутаторов и прокладка нового кабеля',
+      department: createdDepartments['IT'].id,
+      startDate: '2024-02-01',
+      dueDate: '2024-04-15',
+      status: 'ACTIVE',
+      priorityLight: 'YELLOW',
+      owner: itOwnerId,
+      supportingSpecialists: [itSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'Закупка оборудования', completed: true, order: 1 },
+        { title: 'Монтаж кабельной системы', completed: true, order: 2 },
+        { title: 'Настройка VLAN', completed: true, order: 3 },
+        { title: 'Тестирование скорости', completed: false, order: 4 },
+      ],
     },
-  });
-}
+    {
+      title: 'Разработка портала пациента',
+      description: 'Личный кабинет для записи на приём и просмотра результатов',
+      department: createdDepartments['DIGITALIZATION'].id,
+      startDate: '2024-03-01',
+      dueDate: '2024-12-31',
+      status: 'ACTIVE',
+      priorityLight: 'GREEN',
+      owner: digitalOwnerId,
+      supportingSpecialists: [digitalSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'UI/UX дизайн', completed: true, order: 1 },
+        { title: 'Разработка API', completed: false, order: 2 },
+        { title: 'Фронтенд разработка', completed: false, order: 3 },
+        { title: 'Интеграция с МИС', completed: false, order: 4 },
+        { title: 'Безопасность и GDPR', completed: false, order: 5 },
+        { title: 'Мобильная версия', completed: false, order: 6 },
+      ],
+    },
+    {
+      title: 'Система видеонаблюдения',
+      description: 'Установка IP-камер и сервера видеоархива',
+      department: createdDepartments['IT'].id,
+      startDate: '2024-01-01',
+      dueDate: '2024-03-01',
+      status: 'ARCHIVED',
+      priorityLight: 'GREEN',
+      owner: itOwnerId,
+      supportingSpecialists: [itSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'Проектирование системы', completed: true, order: 1 },
+        { title: 'Закупка камер', completed: true, order: 2 },
+        { title: 'Монтаж', completed: true, order: 3 },
+        { title: 'Настройка NVR', completed: true, order: 4 },
+      ],
+    },
+    {
+      title: 'Модернизация ЦОД',
+      description: 'Обновление серверного оборудования и СХД',
+      department: createdDepartments['IT'].id,
+      startDate: '2024-04-01',
+      dueDate: '2024-08-31',
+      status: 'ACTIVE',
+      priorityLight: 'RED',
+      owner: itOwnerId,
+      supportingSpecialists: [itSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'Аудит текущего оборудования', completed: true, order: 1 },
+        { title: 'Составление ТЗ', completed: true, order: 2 },
+        { title: 'Тендерные процедуры', completed: false, order: 3 },
+        { title: 'Поставка оборудования', completed: false, order: 4 },
+        { title: 'Миграция сервисов', completed: false, order: 5 },
+      ],
+    },
+    {
+      title: 'Archived: Legacy Intranet Cleanup',
+      description: 'Historical project kept for reference in the archive column.',
+      department: createdDepartments['DIGITALIZATION'].id,
+      startDate: '2023-01-10',
+      dueDate: '2023-06-30',
+      status: 'ARCHIVED',
+      priorityLight: 'GREEN',
+      owner: digitalOwnerId,
+      supportingSpecialists: [digitalSupportingId].filter(Boolean),
+      tasks: [
+        { title: 'Audit legacy pages', completed: true, order: 1 },
+        { title: 'Deprecate old integrations', completed: true, order: 2 },
+        { title: 'Publish archive notes', completed: true, order: 3 },
+      ],
+    },
 
-async function importCategories() {
-  for (const category of categories) {
-    await createEntry({ model: 'category', entry: category });
-  }
-}
+  ];
 
-async function importAuthors() {
-  for (const author of authors) {
-    const avatar = await checkFileExistsBeforeUpload([author.avatar]);
+  for (const projectData of sampleProjects) {
+    const { tasks, ...projectFields } = projectData;
 
-    await createEntry({
-      model: 'author',
-      entry: {
-        ...author,
-        avatar,
-      },
+    const existing = await strapi.entityService.findMany('api::project.project', {
+      filters: { title: projectFields.title },
     });
+
+    if (existing.length === 0) {
+      const project = await strapi.entityService.create('api::project.project', {
+        data: projectFields,
+      });
+
+      // Create tasks
+      for (const task of tasks) {
+        await strapi.entityService.create('api::task.task', {
+          data: {
+            ...task,
+            project: project.id,
+          },
+        });
+      }
+
+      console.log(`  ✅ Created project: ${projectFields.title} with ${tasks.length} tasks`);
+    } else {
+      console.log(`  ⚠️ Project exists: ${projectFields.title}`);
+    }
   }
-}
 
-async function importSeedData() {
-  // Allow read of application content types
-  await setPublicPermissions({
-    article: ['find', 'findOne'],
-    category: ['find', 'findOne'],
-    author: ['find', 'findOne'],
-    global: ['find', 'findOne'],
-    about: ['find', 'findOne'],
-  });
+  console.log('✅ Seed completed!');
+};
 
-  // Create all entries
-  await importCategories();
-  await importAuthors();
-  await importArticles();
-  await importGlobal();
-  await importAbout();
-}
-
-async function main() {
-  const { createStrapi, compileStrapi } = require('@strapi/strapi');
-
-  const appContext = await compileStrapi();
-  const app = await createStrapi(appContext).load();
-
-  app.log.level = 'error';
-
-  await seedExampleApp();
-  await app.destroy();
-
-  process.exit(0);
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+module.exports = { default: seedData };

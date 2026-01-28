@@ -1,27 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Activity, User, FolderKanban, Clock } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
 import { activityLogApi, ActivityLog } from '../../api/activityLog';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Loader from '../../components/ui/Loader';
+import { useUserRole } from '../../store/authStore';
 
 const actionLabels: Record<string, { label: string; color: 'success' | 'warning' | 'danger' | 'info' | 'default' }> = {
-  CREATE_PROJECT: { label: 'Создал проект', color: 'success' },
-  UPDATE_PROJECT: { label: 'Обновил проект', color: 'info' },
-  ARCHIVE_PROJECT: { label: 'Архивировал проект', color: 'warning' },
-  RESTORE_PROJECT: { label: 'Восстановил проект', color: 'success' },
-  CREATE_TASK: { label: 'Добавил задачу', color: 'success' },
-  UPDATE_TASK: { label: 'Обновил задачу', color: 'info' },
-  DELETE_TASK: { label: 'Удалил задачу', color: 'danger' },
-  CREATE_MEETING: { label: 'Добавил заметку', color: 'success' },
-  UPDATE_MEETING: { label: 'Обновил заметку', color: 'info' },
-  DELETE_MEETING: { label: 'Удалил заметку', color: 'danger' },
-  MOVE_STAGE: { label: 'Переместил проект', color: 'info' },
+  CREATE_PROJECT: { label: '?????? ??????', color: 'success' },
+  UPDATE_PROJECT: { label: '??????? ??????', color: 'info' },
+  DELETE_PROJECT: { label: '?????? ??????', color: 'danger' },
+  MOVE_STAGE: { label: '?????????? ??????', color: 'info' },
+  CREATE_TASK: { label: '??????? ??????', color: 'success' },
+  MARK_TASK: { label: '??????? ??????', color: 'info' },
+  DELETE_TASK: { label: '?????? ??????', color: 'danger' },
+  CREATE_MEETING: { label: '??????? ???????', color: 'success' },
+  DELETE_MEETING: { label: '?????? ???????', color: 'danger' },
+  CREATE_DOCUMENT: { label: '??????? ????????', color: 'success' },
+  DELETE_DOCUMENT: { label: '?????? ????????', color: 'danger' },
+  ASSIGN_USER: { label: '???????? ???????????', color: 'warning' },
+  ARCHIVE_PROJECT: { label: '??????????? ??????', color: 'warning' },
+  RESTORE_PROJECT: { label: '??????????? ??????', color: 'success' },
+  UPDATE_TASK: { label: '??????? ??????', color: 'info' },
+  UPDATE_MEETING: { label: '??????? ???????', color: 'info' },
 };
 
 export default function ActivityLogPage() {
   const { t, i18n } = useTranslation();
+  const { isAdmin } = useUserRole();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -62,6 +70,10 @@ export default function ActivityLogPage() {
   const getActionInfo = (action: string) => {
     return actionLabels[action] || { label: action, color: 'default' as const };
   };
+
+  if (!isAdmin) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
 
   if (isLoading) {
     return <Loader text={t('common.loading')} />;

@@ -18,6 +18,7 @@ interface ProjectState {
   departments: Department[];
   selectedProject: Project | null;
   filters: ProjectFilters;
+  showArchiveColumn: boolean;
   isLoading: boolean;
   error: string | null;
 
@@ -28,6 +29,7 @@ interface ProjectState {
   fetchProject: (id: number | string) => Promise<void>;
   setFilters: (filters: Partial<ProjectFilters>) => void;
   clearFilters: () => void;
+  setShowArchiveColumn: (visible: boolean) => void;
   updateProjectLocally: (documentId: string, updates: Partial<Project>) => void;
 }
 
@@ -37,6 +39,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   departments: [],
   selectedProject: null,
   filters: {},
+  showArchiveColumn: false,
   isLoading: false,
   error: null,
 
@@ -103,6 +106,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ filters: {} });
   },
 
+  setShowArchiveColumn: (visible) => {
+    set({ showArchiveColumn: visible });
+  },
+
   updateProjectLocally: (documentId, updates) => {
     const projects = get().projects.map((p) =>
       p.documentId === documentId ? { ...p, ...updates } : p
@@ -116,9 +123,7 @@ export const getProjectStage = (project: Project, stages: BoardStage[]): BoardSt
   if (project.manualStageOverride) {
     return project.manualStageOverride;
   }
-  
-  const progress = project.progressPercent || 0;
-  return stages.find(
-    (stage) => progress >= stage.minPercent && progress < stage.maxPercent
-  ) || stages[stages.length - 1];
+
+  const orderedStages = [...stages].sort((a, b) => (a.order || 0) - (b.order || 0));
+  return orderedStages[0];
 };

@@ -10,7 +10,8 @@
     "dev": "strapi develop",
     "start": "strapi start",
     "seed": "strapi console --eval \"require('./scripts/seed').default()\"",
-    "strapi": "strapi"
+    "strapi": "strapi",
+    "test": "tsx --test"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.33.3",
@@ -27,6 +28,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "tsx": "^4.7.0",
     "typescript": "^5"
   },
   "engines": {

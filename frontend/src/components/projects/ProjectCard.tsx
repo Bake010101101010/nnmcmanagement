@@ -99,11 +99,6 @@ export default function ProjectCard({
             {t('project.dueSoon')}
           </Badge>
         )}
-        {project.manualStageOverride && (
-          <Badge variant="info" size="sm">
-            Вручную
-          </Badge>
-        )}
         {project.status === 'ARCHIVED' && (
           <Badge variant="default" size="sm">
             {t('status.ARCHIVED')}

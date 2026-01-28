@@ -17,12 +17,17 @@
       "enum": [
         "CREATE_PROJECT",
         "UPDATE_PROJECT",
+        "DELETE_PROJECT",
         "ARCHIVE_PROJECT",
         "RESTORE_PROJECT",
         "CREATE_TASK",
+        "MARK_TASK",
         "UPDATE_TASK",
         "DELETE_TASK",
         "CREATE_MEETING",
+        "CREATE_DOCUMENT",
+        "DELETE_DOCUMENT",
+        "ASSIGN_USER",
         "UPDATE_MEETING",
         "DELETE_MEETING",
         "MOVE_STAGE"

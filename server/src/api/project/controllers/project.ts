@@ -1,4 +1,6 @@
 import { factories } from '@strapi/strapi';
+import { getAssignableUserFilters, getRoleFlags } from '../../../utils/project-assignments';
+import { computeProjectProgressFromTasks } from '../../../utils/task-workflow';
 
 async function checkSuperAdmin(
   ctx: any,
@@ -14,9 +16,9 @@ async function checkSuperAdmin(
     return false;
   }
 
-  const userWithRole = await strapi.entityService.findOne('plugin::users-permissions.user', user.id, {
+  const userWithRole = (await strapi.entityService.findOne('plugin::users-permissions.user', user.id, {
     populate: ['role'],
-  });
+  })) as any;
 
   const roleName = (userWithRole?.role?.name || '').toLowerCase().replace(/\s+/g, '');
   const roleType = (userWithRole?.role?.type || '').toLowerCase().replace(/\s+/g, '');
@@ -88,6 +90,68 @@ export default factories.createCoreController('api::project.project', ({ strapi 
     return response;
   },
 
+  async assignableUsers(ctx) {
+    const currentUser = ctx.state.user;
+    if (!currentUser) {
+      ctx.throw(401, 'Not authenticated');
+      return;
+    }
+
+    const userWithRole = (await strapi.entityService.findOne(
+      'plugin::users-permissions.user',
+      currentUser.id,
+      {
+        populate: ['role', 'department'],
+      }
+    )) as any;
+
+    const { isSuperAdmin } = getRoleFlags(userWithRole?.role);
+    const requesterDepartmentKey = userWithRole?.department?.key ?? null;
+    const requestedDepartmentKey = typeof ctx.query?.department === 'string' ? ctx.query.department : undefined;
+    if (
+      !isSuperAdmin &&
+      requestedDepartmentKey &&
+      requesterDepartmentKey &&
+      requestedDepartmentKey !== requesterDepartmentKey
+    ) {
+      ctx.throw(403, 'You can request users only from your department');
+      return;
+    }
+    const filters = getAssignableUserFilters({
+      isSuperAdmin,
+      requesterDepartmentKey,
+      requestedDepartmentKey,
+    });
+
+    if (filters === null) {
+      ctx.throw(403, 'User department is required');
+      return;
+    }
+
+    const users = (await strapi.entityService.findMany('plugin::users-permissions.user', {
+      filters: { ...filters, blocked: false } as any,
+      populate: ['department'],
+      sort: { firstName: 'asc', lastName: 'asc', username: 'asc' },
+    })) as any[];
+
+    const sanitized = users.map((user: any) => ({
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      department: user.department
+        ? {
+            id: user.department.id,
+            key: user.department.key,
+            name_ru: user.department.name_ru,
+            name_kz: user.department.name_kz,
+          }
+        : null,
+    }));
+
+    ctx.body = { data: sanitized };
+  },
+
   async delete(ctx) {
     await checkSuperAdmin(ctx, strapi);
     return await super.delete(ctx);
@@ -99,9 +163,7 @@ function enrichProjectWithComputedFields(project: any) {
   today.setHours(0, 0, 0, 0);
 
   const tasks = project.tasks || [];
-  const totalTasks = tasks.length;
-  const doneTasks = tasks.filter((t: any) => t.status === 'DONE').length;
-  const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const { progressPercent, doneTasks, totalTasks } = computeProjectProgressFromTasks(tasks);
 
   const dueDate = project.dueDate ? new Date(project.dueDate) : null;
   let overdue = false;

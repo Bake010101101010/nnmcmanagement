@@ -142,7 +142,10 @@ export const useUserRole = () => {
   const roleName = (user?.role?.name || '').toLowerCase().replace(/\s+/g, '');
   
   // Проверяем на admin/superadmin роли
-  const adminRoles = ['admin', 'superadmin', 'super_admin', 'суперадмин'];
+  const superAdminRoles = ['superadmin', 'super_admin', 'суперадмин'];
+  const isSuperAdmin = superAdminRoles.some(role => roleName.includes(role) || roleType.includes(role));
+  
+  const adminRoles = ['admin', ...superAdminRoles];
   const isAdmin = adminRoles.some(role => roleName.includes(role) || roleType.includes(role));
   
   const leadRoles = ['lead', 'руководитель'];
@@ -197,6 +200,7 @@ export const useUserRole = () => {
   
   return {
     isAdmin,
+    isSuperAdmin,
     isLead,
     isMember,
     role,

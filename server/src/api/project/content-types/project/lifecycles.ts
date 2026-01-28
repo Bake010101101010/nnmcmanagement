@@ -1,14 +1,34 @@
-export default {
-  async afterCreate(event: any) {
-    const { result, params } = event;
+﻿export default {
+  async beforeCreate(event: any) {
+    const { params } = event;
     const strapi = (global as any).strapi;
-    
+
+    if (params?.data?.manualStageOverride) {
+      return;
+    }
+
+    const firstStage = (await strapi.entityService.findMany('api::board-stage.board-stage', {
+      sort: { order: 'asc' },
+      pagination: { pageSize: 1 },
+    })) as any[];
+
+    if (firstStage[0]?.id) {
+      params.data.manualStageOverride = firstStage[0].id;
+    }
+  },
+
+  async afterCreate(event: any) {
+    const { result } = event;
+    const strapi = (global as any).strapi;
+    const userId = event?.state?.user?.id ?? null;
+
     try {
       await strapi.entityService.create('api::activity-log.activity-log', {
         data: {
           action: 'CREATE_PROJECT',
           description: `Создан проект: "${result.title}"`,
           project: result.id,
+          user: userId,
           metadata: { projectTitle: result.title },
         },
       });
@@ -20,32 +40,65 @@ export default {
   async afterUpdate(event: any) {
     const { result, params } = event;
     const strapi = (global as any).strapi;
-    
+    const userId = event?.state?.user?.id ?? null;
+
     try {
-      // Проверяем, был ли проект архивирован или восстановлен
-      const data = params.data;
-      let action = 'UPDATE_PROJECT';
-      let description = `Обновлён проект: "${result.title}"`;
-      
-      if (data?.status === 'ARCHIVED') {
-        action = 'ARCHIVE_PROJECT';
-        description = `Архивирован проект: "${result.title}"`;
-      } else if (data?.status === 'ACTIVE' && data?.status !== undefined) {
-        action = 'RESTORE_PROJECT';
-        description = `Восстановлен проект: "${result.title}"`;
-      } else if (data?.manualStageOverride !== undefined) {
-        action = 'MOVE_STAGE';
-        description = `Изменена стадия проекта: "${result.title}"`;
+      const data = params.data || {};
+      const changes = Object.keys(data || {});
+      const logEntries: Array<{ action: string; description: string; metadata?: any }> = [];
+
+      if (Object.prototype.hasOwnProperty.call(data, 'manualStageOverride')) {
+        logEntries.push({
+          action: 'MOVE_STAGE',
+          description: `Перемещён проект: "${result.title}"`,
+          metadata: { projectTitle: result.title, changes },
+        });
       }
-      
-      await strapi.entityService.create('api::activity-log.activity-log', {
-        data: {
-          action,
-          description,
-          project: result.id,
-          metadata: { projectTitle: result.title, changes: Object.keys(data || {}) },
-        },
-      });
+
+      if (data?.status === 'DELETED') {
+        logEntries.push({
+          action: 'DELETE_PROJECT',
+          description: `Удалён проект: "${result.title}"`,
+          metadata: { projectTitle: result.title, changes },
+        });
+      }
+
+      const assignmentFields = ['owner', 'supportingSpecialists', 'responsibleUsers'];
+      const hasAssignmentChange = assignmentFields.some((field) =>
+        Object.prototype.hasOwnProperty.call(data, field)
+      );
+      if (hasAssignmentChange) {
+        logEntries.push({
+          action: 'ASSIGN_USER',
+          description: `Назначены исполнители проекта: "${result.title}"`,
+          metadata: { projectTitle: result.title, changes, fields: assignmentFields },
+        });
+      }
+
+      const updateFields = changes.filter(
+        (field) => field !== 'manualStageOverride' && !assignmentFields.includes(field)
+      );
+      const shouldLogUpdate = updateFields.length > 0 && data?.status !== 'DELETED';
+
+      if (shouldLogUpdate) {
+        logEntries.push({
+          action: 'UPDATE_PROJECT',
+          description: `Обновлён проект: "${result.title}"`,
+          metadata: { projectTitle: result.title, changes },
+        });
+      }
+
+      for (const entry of logEntries) {
+        await strapi.entityService.create('api::activity-log.activity-log', {
+          data: {
+            action: entry.action,
+            description: entry.description,
+            project: result.id,
+            user: userId,
+            metadata: entry.metadata || { projectTitle: result.title, changes },
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to log activity:', error);
     }

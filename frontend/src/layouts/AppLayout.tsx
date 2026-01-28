@@ -34,7 +34,7 @@ export default function AppLayout() {
   ];
 
   // Страницы для руководителей
-  const adminNavItems = (isAdmin || isLead) ? [
+  const adminNavItems = isAdmin ? [
     { to: '/app/activity', icon: Activity, label: 'История действий' },
   ] : [];
 

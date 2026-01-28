@@ -446,12 +446,17 @@ export interface ApiActivityLogActivityLog extends Struct.CollectionTypeSchema {
       [
         'CREATE_PROJECT',
         'UPDATE_PROJECT',
+        'DELETE_PROJECT',
         'ARCHIVE_PROJECT',
         'RESTORE_PROJECT',
         'CREATE_TASK',
+        'MARK_TASK',
         'UPDATE_TASK',
         'DELETE_TASK',
         'CREATE_MEETING',
+        'CREATE_DOCUMENT',
+        'DELETE_DOCUMENT',
+        'ASSIGN_USER',
         'UPDATE_MEETING',
         'DELETE_MEETING',
         'MOVE_STAGE',
@@ -725,6 +730,11 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::meeting-note.meeting-note'
     >;
+    owner: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Schema.Attribute.Required;
     priorityLight: Schema.Attribute.Enumeration<['GREEN', 'YELLOW', 'RED']> &
       Schema.Attribute.DefaultTo<'GREEN'>;
     publishedAt: Schema.Attribute.DateTime;
@@ -736,6 +746,10 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
     status: Schema.Attribute.Enumeration<['ACTIVE', 'ARCHIVED', 'DELETED']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'ACTIVE'>;
+    supportingSpecialists: Schema.Attribute.Relation<
+      'manyToMany',
+      'plugin::users-permissions.user'
+    >;
     surveys: Schema.Attribute.Relation<
       'oneToMany',
       'api::project-survey.project-survey'
@@ -806,6 +820,7 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    completed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -819,9 +834,6 @@ export interface ApiTaskTask extends Struct.CollectionTypeSchema {
     project: Schema.Attribute.Relation<'manyToOne', 'api::project.project'>;
     publishedAt: Schema.Attribute.DateTime;
     startDate: Schema.Attribute.Date;
-    status: Schema.Attribute.Enumeration<['TODO', 'IN_PROGRESS', 'DONE']> &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<'TODO'>;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &

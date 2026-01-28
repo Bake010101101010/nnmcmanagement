@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, Filter, Plus, ExternalLink, Archive, RotateCcw, Building2, Trash2 } from 'lucide-react';
@@ -21,6 +21,8 @@ export default function TablePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const paramsKey = searchParams.toString();
+  const isSyncingFromUrl = useRef(false);
   const { departmentKey, userDepartment, isAdmin, canEditProject, canEdit, canDeleteProject } = useUserRole();
   const {
     projects,
@@ -45,30 +47,88 @@ export default function TablePage() {
 
   // Читаем фильтры из URL при загрузке
   useEffect(() => {
+    isSyncingFromUrl.current = true;
     const filter = searchParams.get('filter');
-    const dept = searchParams.get('department');
-    
+    const dept = searchParams.get('department') || '';
+    const priority = searchParams.get('priority') || '';
+    const search = searchParams.get('search') || '';
+
+    let nextStatus = '';
+    let nextSpecial = '';
     if (filter === 'active') {
-      setStatusFilter('ACTIVE');
+      nextStatus = 'ACTIVE';
     } else if (filter === 'archived') {
-      setStatusFilter('ARCHIVED');
+      nextStatus = 'ARCHIVED';
     } else if (filter === 'deleted') {
       if (isAdmin) {
-        setStatusFilter('DELETED');
-        setSpecialFilter('');
-      } else {
-        setStatusFilter('');
+        nextStatus = 'DELETED';
       }
     } else if (filter === 'overdue') {
-      setSpecialFilter('overdue');
+      nextSpecial = 'overdue';
     } else if (filter === 'dueSoon') {
-      setSpecialFilter('dueSoon');
+      nextSpecial = 'dueSoon';
     }
-    
-    if (dept) {
-      setDeptFilter(dept);
+
+    if (statusFilter !== nextStatus) {
+      setStatusFilter(nextStatus);
     }
-  }, [searchParams, isAdmin]);
+    if (specialFilter !== nextSpecial) {
+      setSpecialFilter(nextSpecial);
+    }
+    if (priorityFilter !== priority) {
+      setPriorityFilter(priority);
+    }
+    if (searchTerm !== search) {
+      setSearchTerm(search);
+    }
+
+    if (isAdmin) {
+      if (deptFilter !== dept) {
+        setDeptFilter(dept);
+      }
+    } else if (deptFilter !== '') {
+      setDeptFilter('');
+    }
+  }, [paramsKey, isAdmin]);
+
+  useEffect(() => {
+    if (isSyncingFromUrl.current) {
+      isSyncingFromUrl.current = false;
+      return;
+    }
+    const params = new URLSearchParams();
+    let filterValue = '';
+    if (specialFilter === 'overdue') {
+      filterValue = 'overdue';
+    } else if (specialFilter === 'dueSoon') {
+      filterValue = 'dueSoon';
+    } else if (statusFilter === 'ACTIVE') {
+      filterValue = 'active';
+    } else if (statusFilter === 'ARCHIVED') {
+      filterValue = 'archived';
+    } else if (statusFilter === 'DELETED' && isAdmin) {
+      filterValue = 'deleted';
+    }
+
+    if (filterValue) {
+      params.set('filter', filterValue);
+    }
+    if (isAdmin && deptFilter) {
+      params.set('department', deptFilter);
+    }
+    if (priorityFilter) {
+      params.set('priority', priorityFilter);
+    }
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    }
+
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [statusFilter, specialFilter, deptFilter, priorityFilter, searchTerm, isAdmin, searchParams, setSearchParams]);
 
   useEffect(() => {
     fetchStages();
@@ -181,10 +241,22 @@ export default function TablePage() {
     return i18n.language === 'kz' ? dept.name_kz : dept.name_ru;
   };
 
-  const getStageName = (project: any) => {
+  const bucketOrder = (order?: number | null) => {
+    if (!order || !Number.isFinite(order)) return 1;
+    if (order <= 1) return 1;
+    if (order >= 5) return 5;
+    return Math.round(order);
+  };
+
+  const getStageName = (project: Project) => {
     const stage = getProjectStage(project, stages);
     if (!stage) return '';
-    return i18n.language === 'kz' ? stage.name_kz : stage.name_ru;
+    const order = bucketOrder(stage.order);
+    if (order === 1) return t('workflow.ideas.title');
+    if (order === 2) return t('workflow.preparation.title');
+    if (order === 3) return t('workflow.inProgress.title');
+    if (order === 4) return t('workflow.testing.title');
+    return t('workflow.production.title');
   };
 
   const formatDate = (dateStr?: string) => {
@@ -405,9 +477,6 @@ export default function TablePage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-slate-600">{getStageName(project)}</span>
-                        {project.manualStageOverride && (
-                          <span className="text-xs text-blue-500">*</span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">

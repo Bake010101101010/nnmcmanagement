@@ -36,6 +36,14 @@ export interface UserRole {
   description?: string;
 }
 
+export interface AssignableUser {
+  id: number;
+  username: string;
+  firstName?: string;
+  lastName?: string;
+  department?: Department | null;
+}
+
 // Department
 export interface Department {
   id: number;
@@ -63,7 +71,7 @@ export interface Task {
   documentId: string;
   title: string;
   description?: string;
-  status: 'TODO' | 'IN_PROGRESS' | 'DONE';
+  completed?: boolean;
   dueDate?: string;
   startDate?: string;
   endDate?: string;
@@ -93,6 +101,8 @@ export interface Project {
   dueDate?: string;
   status: 'ACTIVE' | 'ARCHIVED' | 'DELETED';
   priorityLight: 'GREEN' | 'YELLOW' | 'RED';
+  owner?: User;
+  supportingSpecialists?: User[];
   responsibleUsers?: User[];
   manualStageOverride?: BoardStage;
   tasks?: Task[];

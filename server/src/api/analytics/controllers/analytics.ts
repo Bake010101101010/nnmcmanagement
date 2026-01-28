@@ -1,4 +1,5 @@
 import { Context } from 'koa';
+import { computeProjectProgressFromTasks } from '../../../utils/task-workflow';
 
 export default {
   async summary(ctx: Context) {
@@ -61,9 +62,7 @@ export default {
         total++;
 
         const tasks = project.tasks || [];
-        const totalTasks = tasks.length;
-        const doneTasks = tasks.filter((t: any) => t.status === 'DONE').length;
-        const progressPercent = totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0;
+        computeProjectProgressFromTasks(tasks);
 
         const dueDate = project.dueDate ? new Date(project.dueDate) : null;
         let isOverdue = false;

@@ -24,7 +24,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=12004
+ENV PORT=12005
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 strapi
@@ -44,6 +44,6 @@ RUN chown -R strapi:nodejs .tmp public/uploads
 
 USER strapi
 
-EXPOSE 12004
+EXPOSE 12005
 
 CMD ["npm", "run", "start"]

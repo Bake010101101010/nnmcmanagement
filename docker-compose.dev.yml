@@ -10,10 +10,10 @@ services:
       dockerfile: Dockerfile
     container_name: nnmc-backend-dev
     ports:
-      - "12004:12004"
+      - "12005:12005"
     environment:
       HOST: 0.0.0.0
-      PORT: 12004
+      PORT: 12005
       NODE_ENV: development
       APP_KEYS: dev-key1,dev-key2,dev-key3,dev-key4
       API_TOKEN_SALT: dev-api-token-salt
@@ -22,7 +22,7 @@ services:
       JWT_SECRET: dev-jwt-secret
       DATABASE_CLIENT: sqlite
       DATABASE_FILENAME: .tmp/data.db
-      FRONTEND_URL: http://localhost:13004
+      FRONTEND_URL: http://192.168.101.25:13005
     volumes:
       - ./server/.tmp:/app/.tmp
       - ./server/public/uploads:/app/public/uploads
@@ -34,10 +34,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:12004
+        VITE_API_URL: http://192.168.101.25:12005
+        VITE_FRONTEND_URL: http://192.168.101.25:13005
     container_name: nnmc-frontend-dev
     ports:
-      - "13004:13004"
+      - "13005:13005"
     depends_on:
       - backend
     networks:

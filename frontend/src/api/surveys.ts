@@ -1,7 +1,11 @@
 import client from './client';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:12004';
+const DEFAULT_API_URL =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:12005`
+    : 'http://127.0.0.1:12005';
+const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 
 export interface SurveyQuestion {
   id?: number;

@@ -4,8 +4,8 @@
 
 ## Особенности
 
-- **Backend**: Strapi v5 + SQLite (порт 12004)
-- **Frontend**: React + Vite + TailwindCSS (порт 13004)
+- **Backend**: Strapi v5 + SQLite (порт 12005)
+- **Frontend**: React + Vite + TailwindCSS (порт 13005)
 - **Авторизация**: JWT, Email подтверждение, Reset Password
 - **Роли**: Admin, Lead, Member (с разграничением прав)
 - **Языки**: Русский / Казахский (i18n переключатель)
@@ -28,13 +28,13 @@ cd it-onlinereview
 cd server
 npm install
 npm run develop
-# Откройте http://localhost:12004/admin для настройки
+# Откройте http://192.168.101.25:12005/admin для настройки
 
 # 3. В новом терминале запустите Frontend
 cd frontend
 npm install
 npm run dev
-# Откройте http://localhost:13004
+# Откройте http://192.168.101.25:13005
 ```
 
 ### Docker запуск
@@ -166,7 +166,7 @@ docker-compose -f docker-compose.dev.yml up
 ```env
 # Server
 HOST=0.0.0.0
-PORT=12004
+PORT=12005
 
 # Secrets
 APP_KEYS=key1,key2,key3,key4
@@ -182,13 +182,14 @@ SMTP_PASS=your-app-password
 SMTP_FROM=noreply@nnmc.kz
 
 # CORS
-FRONTEND_URL=http://localhost:13004
+FRONTEND_URL=http://192.168.101.25:13005
 ```
 
 ### Frontend (.env)
 
 ```env
-VITE_API_URL=http://localhost:12004
+VITE_API_URL=http://192.168.101.25:12005
+VITE_FRONTEND_URL=http://192.168.101.25:13005
 ```
 
 ## Coolify Deployment
@@ -196,8 +197,8 @@ VITE_API_URL=http://localhost:12004
 1. Создайте новый проект в Coolify
 2. Добавьте репозиторий
 3. Настройте сервисы:
-   - Backend: `./server/Dockerfile`, порт 12004
-   - Frontend: `./frontend/Dockerfile`, порт 13004
+   - Backend: `./server/Dockerfile`, порт 12005
+   - Frontend: `./frontend/Dockerfile`, порт 13005
 4. Добавьте environment variables
 5. Настройте volumes для persistence:
    - `/app/.tmp` - SQLite база
@@ -206,7 +207,7 @@ VITE_API_URL=http://localhost:12004
 ## Первый запуск
 
 1. Запустите backend (`npm run develop`)
-2. Откройте http://localhost:12004/admin
+2. Откройте http://192.168.101.25:12005/admin
 3. Создайте первого Admin пользователя
 4. Seed-данные создадутся автоматически
 5. Настройте права в Settings → Users & Permissions → Roles
